@@ -66,9 +66,11 @@ struct RootView: View {
             LibraryView()
         case .search:
             SearchView()
+        case .tags:
+            TagsView()
         case .settings:
             SettingsView()
-        case .tags, .trash:
+        case .trash:
             ComingLaterView(destination: destination)
         }
     }
