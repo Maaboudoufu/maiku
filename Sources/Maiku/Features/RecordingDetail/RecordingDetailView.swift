@@ -204,9 +204,9 @@ struct RecordingDetailView: View {
             VStack(alignment: .leading, spacing: theme.space.md) {
                 ForEach(organized.organizedSections) { section in
                     PixelPanel(section.heading) {
-                        Text(section.body)
-                            .font(theme.font.body)
-                            .foregroundStyle(theme.color.textPrimary)
+                        EditableSectionBody(
+                            text: section.body,
+                            onEdit: { newBody in await editNotesSection(section, newBody: newBody) })
                     }
                 }
                 if !organized.openQuestions.isEmpty {
@@ -346,6 +346,21 @@ struct RecordingDetailView: View {
         try? await repository.replaceSegments(segments, recordingID: recordingID)
     }
 
+    /// Plan §10.6's "Editable sections" — `OrganizedRecording` is stored as
+    /// one JSON blob (see the `ponytail:` note on `organizedResults` in
+    /// `Migrations.swift`), so an edit re-saves the whole thing rather than
+    /// one section in isolation; at this screen's scale that's an
+    /// unmeasurable cost, not a real one.
+    private func editNotesSection(_ section: OrganizedSection, newBody: String) async {
+        guard let repository = appEnvironment?.repository, var organized,
+            let index = organized.organizedSections.firstIndex(where: { $0.id == section.id }),
+            newBody != section.body
+        else { return }
+        organized.organizedSections[index].body = newBody
+        self.organized = organized
+        try? await repository.saveOrganizedResult(organized, recordingID: recordingID)
+    }
+
     // MARK: Playback
 
     private func loadAudio() async {
@@ -463,6 +478,32 @@ private struct TagRow: View {
                     .background(theme.color.surfaceSunken, in: PixelCorner(step: theme.corner.small))
             }
         }
+    }
+}
+
+/// Plan §10.6's "Editable sections". Same commit-on-focus-loss pattern as
+/// `TranscriptRow`'s text field, for the same reason: `axis: .vertical` lets
+/// Return insert a newline instead of submitting on macOS, and a multi-
+/// sentence note section is exactly the kind of text that needs to wrap.
+private struct EditableSectionBody: View {
+    @Environment(\.theme) private var theme
+    let text: String
+    let onEdit: (String) async -> Void
+
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("Section text", text: $draft, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(theme.font.body)
+            .foregroundStyle(theme.color.textPrimary)
+            .focused($isFocused)
+            .onSubmit { Task { await onEdit(draft) } }
+            .onChange(of: isFocused) { wasFocused, nowFocused in
+                if wasFocused, !nowFocused { Task { await onEdit(draft) } }
+            }
+            .onChange(of: text, initial: true) { _, newValue in draft = newValue }
     }
 }
 
