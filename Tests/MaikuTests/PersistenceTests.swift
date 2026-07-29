@@ -239,3 +239,89 @@ struct RecordingRepositoryTests {
         #expect(try await repo.search("Morgan").map(\.recordingID) == [recording.id])
     }
 }
+
+@Suite("Settings store")
+struct SettingsStoreTests {
+
+    private func makeStore() throws -> SettingsStore {
+        SettingsStore(dbManager: try DatabaseManager.openInMemory())
+    }
+
+    @Test("Fetching before any save returns AppSettings defaults")
+    func fetchDefaultsWhenNoRowSaved() async throws {
+        let store = try makeStore()
+        #expect(try await store.fetch() == AppSettings())
+    }
+
+    @Test("Saved settings round-trip, including nil-able fields")
+    func roundTrip() async throws {
+        let store = try makeStore()
+        var settings = AppSettings()
+        settings.inputDeviceUID = "BuiltInMicrophoneDevice"
+        settings.speechModelName = "base.en"
+        settings.language = "en"
+        settings.liveDiarizationEnabled = false
+        settings.lmStudioBaseURL = URL(string: "http://127.0.0.1:5678")!
+        settings.lmStudioModelID = "qwen2.5-7b"
+        settings.lmStudioTimeout = 45
+        settings.audioRetentionDays = 30
+        settings.reducedMotionOverride = true
+        settings.soundEffectsEnabled = false
+        settings.crtEffectsEnabled = false
+
+        try await store.save(settings)
+
+        #expect(try await store.fetch() == settings)
+    }
+
+    @Test("A second save replaces the singleton row rather than inserting another")
+    func secondSaveReplacesRow() async throws {
+        let store = try makeStore()
+        try await store.save(AppSettings(speechModelName: "tiny.en"))
+        try await store.save(AppSettings(speechModelName: "large-v3_turbo"))
+
+        let fetched = try await store.fetch()
+        #expect(fetched.speechModelName == "large-v3_turbo")
+    }
+}
+
+@Suite("Keychain token store")
+struct KeychainTokenStoreTests {
+
+    private func makeStore() -> KeychainTokenStore {
+        KeychainTokenStore(service: "com.maiku.Maiku.tests.\(UUID().uuidString)", account: "apiToken")
+    }
+
+    @Test("No token is stored until one is saved")
+    func nilBeforeSave() throws {
+        let store = makeStore()
+        defer { try? store.clear() }
+        #expect(try store.token() == nil)
+    }
+
+    @Test("A saved token round-trips")
+    func roundTrip() throws {
+        let store = makeStore()
+        defer { try? store.clear() }
+        try store.save("sk-test-token")
+        #expect(try store.token() == "sk-test-token")
+    }
+
+    @Test("Saving again overwrites the previous token")
+    func overwritesExisting() throws {
+        let store = makeStore()
+        defer { try? store.clear() }
+        try store.save("first-token")
+        try store.save("second-token")
+        #expect(try store.token() == "second-token")
+    }
+
+    @Test("Saving nil clears a previously stored token")
+    func savingNilClears() throws {
+        let store = makeStore()
+        defer { try? store.clear() }
+        try store.save("a-token")
+        try store.save(nil)
+        #expect(try store.token() == nil)
+    }
+}

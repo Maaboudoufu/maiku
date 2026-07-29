@@ -58,11 +58,14 @@ enum Migrations {
 
             // ponytail: one JSON blob per recording rather than the normalised
             // organized_sections/action_items/decisions/quotes/topics tables
-            // plan §8 lists. Milestone 1 only ever reads or replaces a whole
-            // OrganizedRecording at once, so a blob is the honest shortest
-            // path. Upgrade to normalised tables in Milestone 5, when the UI
-            // needs to edit or delete a single action item without decoding
-            // and re-encoding the rest.
+            // plan §8 lists. Every milestone so far — including Milestone 5's
+            // own bullet list — only ever reads or replaces a whole
+            // OrganizedRecording at once (search indexes derived text from
+            // it; export reads the whole thing; the M4 notes editor re-saves
+            // the whole document), so a blob keeps being the honest shortest
+            // path rather than a deferred debt. Upgrade to normalised tables
+            // once a real feature needs to edit or delete a single action
+            // item without touching the rest.
             try db.create(table: "organizedResults") { t in
                 t.column("recordingID", .text).primaryKey()
                     .references("recordings", onDelete: .cascade)
@@ -84,6 +87,28 @@ enum Migrations {
                 t.column("speakerNames")
                 t.column("notesText")
                 t.column("tags")
+            }
+        }
+
+        // Milestone 5: one singleton row of app-wide settings (plan §10.7).
+        // The LM Studio API token is deliberately not a column here — it
+        // lives in the Keychain per plan §12 and is looked up by
+        // `KeychainTokenStore` alongside this row.
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "appSettings") { t in
+                t.column("id", .integer).primaryKey().check { $0 == 1 }
+                t.column("inputDeviceUID", .text)
+                t.column("speechModelName", .text).notNull()
+                t.column("language", .text).notNull()
+                t.column("liveDiarizationEnabled", .boolean).notNull()
+                t.column("lmStudioBaseURL", .text).notNull()
+                t.column("lmStudioModelID", .text)
+                t.column("lmStudioTimeout", .double).notNull()
+                t.column("audioRetentionDays", .integer)
+                t.column("reducedMotionOverride", .boolean)
+                t.column("soundEffectsEnabled", .boolean).notNull()
+                t.column("crtEffectsEnabled", .boolean).notNull()
+                t.column("updatedAt", .datetime).notNull()
             }
         }
 

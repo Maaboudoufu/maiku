@@ -79,6 +79,7 @@ public enum MaikuError: Error, Equatable, Sendable {
     case databaseFailure(String)
     case recordingNotFound(UUID)
     case fileIntegrityCheckFailed(path: String)
+    case keychainFailure(String)
 
     /// Short sentence describing what happened, in plain language.
     public var message: String {
@@ -124,6 +125,8 @@ public enum MaikuError: Error, Equatable, Sendable {
             "That recording no longer exists."
         case .fileIntegrityCheckFailed(let path):
             "The audio file at \(path) appears to be incomplete."
+        case .keychainFailure(let detail):
+            "maiku could not read or write the LM Studio token in the Keychain. \(detail)"
         }
     }
 
@@ -156,7 +159,7 @@ public enum MaikuError: Error, Equatable, Sendable {
             [.retryWithSmallerChunks, .openSettings]
         case .lmStudioInvalidStructuredOutput, .lmStudioHTTPError:
             [.retryOrganization, .viewDiagnostics]
-        case .databaseFailure, .fileIntegrityCheckFailed:
+        case .databaseFailure, .fileIntegrityCheckFailed, .keychainFailure:
             [.retry, .viewDiagnostics]
         case .recordingNotFound:
             []
