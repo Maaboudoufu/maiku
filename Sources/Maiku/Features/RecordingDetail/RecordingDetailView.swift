@@ -1,5 +1,7 @@
+import AppKit
 import MaikuKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Plan §10.6: header, a persistent compact audio player, speaker editor,
 /// and the Overview / Notes / Transcript / Action Items tabs. Transcript
@@ -25,6 +27,7 @@ struct RecordingDetailView: View {
     @State private var titleDraft = ""
     @State private var isRetrying = false
     @State private var retryError: MaikuError?
+    @State private var exportError: String?
 
     @State private var playback = AudioPlaybackService()
     @State private var playbackState = PlaybackState(currentTime: 0, duration: 0, isPlaying: false, rate: 1)
@@ -96,6 +99,13 @@ struct RecordingDetailView: View {
                     .textFieldStyle(.plain)
                     .onSubmit { Task { await saveTitle() } }
                 Spacer()
+                Menu("Export") {
+                    ForEach(ExportFormat.allCases) { format in
+                        Button(format.displayName) { Task { await export(as: format) } }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
                 if recording.status == .trashed {
                     Button("Restore") { Task { await restore() } }
                         .buttonStyle(.pixel(.secondary))
@@ -112,6 +122,12 @@ struct RecordingDetailView: View {
             }
             .font(theme.font.caption)
             .foregroundStyle(theme.color.textSecondary)
+
+            if let exportError {
+                Text(exportError)
+                    .font(theme.font.caption)
+                    .foregroundStyle(theme.color.warning)
+            }
 
             if let organized, !organized.tags.isEmpty {
                 TagRow(tags: organized.tags)
@@ -455,6 +471,29 @@ struct RecordingDetailView: View {
         guard let repository = appEnvironment?.repository else { return }
         try? await repository.restore(id: recordingID)
         await load()
+    }
+
+    private func export(as format: ExportFormat) async {
+        guard let recording else { return }
+        exportError = nil
+        let context = RecordingExportContext(
+            recording: recording, speakers: speakers, segments: segments, organized: organized)
+        let text = RecordingExporter.export(context, as: format)
+
+        let panel = NSSavePanel()
+        let baseName = recording.title.isEmpty ? "Recording" : recording.title
+        panel.nameFieldStringValue = "\(Self.sanitizedFilename(baseName)).\(format.fileExtension)"
+        panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            exportError = "Could not write the export: \(error.localizedDescription)"
+        }
+    }
+
+    private static func sanitizedFilename(_ name: String) -> String {
+        name.components(separatedBy: CharacterSet(charactersIn: "/:")).joined(separator: "-")
     }
 
     private static let dateFormatter: DateFormatter = {
