@@ -47,9 +47,12 @@ monospaced text. No font files are bundled or redistributed.
 
 ## Artwork
 
-The Clawd character is associated with Anthropic. **No Clawd artwork is included in this
-repository.** The mascot system renders a clearly labelled generic placeholder and will use
-authorized artwork only if you supply it yourself — see `Resources/Clawd/README.md`.
+The Clawd character is associated with Anthropic. No Clawd artwork is scraped, traced,
+downloaded, or model-generated into this repository — every sprite present was supplied
+directly by the project maintainer, who is responsible for their own authorization to use it.
+As of this writing, only the `listening` state has real artwork; every other state still
+renders a clearly labelled generic placeholder until art for it is supplied the same way.
+See `Resources/Clawd/README.md` for the current per-state status.
 
 maiku is an independent project and is not affiliated with, endorsed by, or sponsored by
 Anthropic, OpenAI, Hugging Face, or LM Studio.

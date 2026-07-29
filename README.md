@@ -73,8 +73,9 @@ is live, but that is not a substitute for asking.
 
 ## Mascot
 
-The app is themed around Clawd, who belongs to Anthropic. No Clawd artwork ships in this
-repository; the mascot renders as a labelled placeholder until you supply artwork you are
-authorized to use. See [`Resources/Clawd/README.md`](Resources/Clawd/README.md).
+The app is themed around Clawd, who belongs to Anthropic. Only artwork the project maintainer
+supplies directly, under their own authorization, ships here — as of this writing that's one
+state (`listening`); every other state still renders a labelled placeholder until art for it is
+supplied the same way. See [`Resources/Clawd/README.md`](Resources/Clawd/README.md).
 
 maiku is an independent project and is not affiliated with Anthropic.

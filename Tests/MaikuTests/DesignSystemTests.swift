@@ -34,6 +34,10 @@ struct ClawdManifestTests {
                 "clawd_listening_02.png",
                 "clawd_listening_03.png",
                 "clawd_listening_04.png",
+                "clawd_listening_05.png",
+                "clawd_listening_06.png",
+                "clawd_listening_07.png",
+                "clawd_listening_08.png",
                 "clawd_paused.png",
                 "clawd_transcribing_01.png",
                 "clawd_transcribing_02.png",
@@ -66,6 +70,27 @@ struct ClawdManifestTests {
         let manifest = ClawdAssetManifest.standard
         let used = Set(allStates.flatMap { manifest.entry(for: $0).frames })
         #expect(used == Set(manifest.fileNames))
+    }
+
+    /// Regression test for a real bug: installing one state's art must not
+    /// hide the "Placeholder art" badge for a state that still has none —
+    /// art lands one state at a time (README), so this has to be checked
+    /// per entry, not with one app-wide flag.
+    @Test("isFullyInstalled is independent per entry, and a partial sequence still reads as not installed")
+    @MainActor
+    func isFullyInstalledIsPerEntryNotGlobal() {
+        let installedNames: Set<String> = ["__test_installed_a__", "__test_installed_b__"]
+        let resolve: (String) -> Bool = { installedNames.contains($0) }
+
+        let fullyInstalled = ClawdAssetManifest.Entry(["__test_installed_a__", "__test_installed_b__"])
+        let fullyMissing = ClawdAssetManifest.Entry(["__test_missing_a__", "__test_missing_b__"])
+        let partiallyInstalled = ClawdAssetManifest.Entry(["__test_installed_a__", "__test_missing_a__"])
+
+        #expect(ClawdArtwork.isFullyInstalled(fullyInstalled, resolve: resolve))
+        #expect(!ClawdArtwork.isFullyInstalled(fullyMissing, resolve: resolve))
+        #expect(
+            !ClawdArtwork.isFullyInstalled(partiallyInstalled, resolve: resolve),
+            "one missing frame in a sequence must not read as fully installed")
     }
 
     @Test("Frame index cycles and stays in bounds")

@@ -34,7 +34,12 @@ public struct ClawdView: View {
                     .tracking(1)
                     .foregroundStyle(theme.color.textSecondary)
             }
-            if !ClawdArtwork.isInstalled { placeholderBadge }
+            // Per-state, not a single app-wide flag: art lands one state at a
+            // time (README), so a state with no art of its own must keep
+            // showing this badge even after another state's art is installed.
+            if !ClawdArtwork.isFullyInstalled(ClawdAssetManifest.standard.entry(for: state)) {
+                placeholderBadge
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(state.accessibilityLabel)

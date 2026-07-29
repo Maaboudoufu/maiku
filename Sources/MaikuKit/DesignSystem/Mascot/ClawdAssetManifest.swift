@@ -32,6 +32,12 @@ public struct ClawdAssetManifest: Sendable {
 
     /// Every filename plan §14 names, in the order it names them. Authorised
     /// art must use these exact names.
+    ///
+    /// `listening` ships 8 frames, not the 4 plan §14's suggested manifest
+    /// sketched — the first authorized art actually supplied for this
+    /// mascot came as an 8-frame loop (110ms/frame; see
+    /// `Resources/Clawd/README.md`), and the plan's own frame list was
+    /// explicitly a *suggested* starting manifest, not a fixed frame count.
     public let fileNames = [
         "clawd_idle_notebook.png",
         "clawd_ready_mic.png",
@@ -39,6 +45,10 @@ public struct ClawdAssetManifest: Sendable {
         "clawd_listening_02.png",
         "clawd_listening_03.png",
         "clawd_listening_04.png",
+        "clawd_listening_05.png",
+        "clawd_listening_06.png",
+        "clawd_listening_07.png",
+        "clawd_listening_08.png",
         "clawd_paused.png",
         "clawd_transcribing_01.png",
         "clawd_transcribing_02.png",
@@ -59,12 +69,16 @@ public struct ClawdAssetManifest: Sendable {
         case .ready:
             Entry(["clawd_ready_mic.png"])
         case .listening:
-            // Fast enough to read as talking, slow enough to stay legible.
+            // 110ms/frame matches the authorized artwork's own metadata
+            // (Resources/Clawd/README.md) — fast enough to read as talking,
+            // slow enough to stay legible.
             Entry(
                 [
                     "clawd_listening_01.png", "clawd_listening_02.png",
                     "clawd_listening_03.png", "clawd_listening_04.png",
-                ], frameDuration: 0.12)
+                    "clawd_listening_05.png", "clawd_listening_06.png",
+                    "clawd_listening_07.png", "clawd_listening_08.png",
+                ], frameDuration: 0.11)
         case .paused:
             Entry(["clawd_paused.png"])
         case .transcribing:
@@ -120,9 +134,23 @@ enum ClawdArtwork {
         return loaded.map { Image(nsImage: $0) }
     }
 
-    /// Whether any authorised artwork is installed. Drives the placeholder
-    /// badge, and is resolved once — art does not appear mid-session.
-    static let isInstalled: Bool = ClawdAssetManifest.standard.fileNames.contains {
-        ClawdAssetManifest.url(for: $0) != nil
+    private static var installedCache: [[String]: Bool] = [:]
+
+    /// Whether every frame *this state's* entry needs is installed. Per
+    /// state, not app-wide: art lands one state at a time (README), so
+    /// installing `listening`'s frames must not hide the placeholder badge
+    /// on `idle`/`ready`/etc., which still have none. Resolved once per
+    /// distinct frame list — art does not appear mid-session.
+    static func isFullyInstalled(_ entry: ClawdAssetManifest.Entry) -> Bool {
+        isFullyInstalled(entry) { ClawdAssetManifest.url(for: $0) != nil }
+    }
+
+    /// `resolve` is injectable so this can be tested without a real bundle or
+    /// mutating process-wide environment state.
+    static func isFullyInstalled(_ entry: ClawdAssetManifest.Entry, resolve: (String) -> Bool) -> Bool {
+        if let cached = installedCache[entry.frames] { return cached }
+        let result = entry.frames.allSatisfy(resolve)
+        installedCache[entry.frames] = result
+        return result
     }
 }
