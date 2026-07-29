@@ -108,10 +108,11 @@ actor FakeTranscriber: SpeechTranscribing {
 
 actor FakeDiarizer: SpeakerDiarizing {
     private(set) var diarizeFileCalled = false
+    private(set) var startStreamingCalled = false
     var turnsToReturn: [SpeakerTurn] = [SpeakerTurn(diarizerLabel: "1", startTime: 0, endTime: 4)]
 
     func prepare() async throws {}
-    func startStreaming() async throws {}
+    func startStreaming() async throws { startStreamingCalled = true }
     nonisolated func accept(_ buffer: AVAudioPCMBuffer, at time: TimeInterval) async throws {}
 
     nonisolated func updates() -> AsyncThrowingStream<DiarizationUpdate, Error> {
@@ -210,6 +211,27 @@ struct RecordingCoordinatorTests {
         let organized = try #require(try await repository.fetchOrganizedResult(recordingID: recordingID))
         #expect(organized.title == "Team Sync")
         #expect(organized.tags == ["launch"])
+    }
+
+    @Test("Disabling live diarization skips streaming but not the final file-based pass")
+    func liveDiarizationToggleGatesOnlyStreaming() async throws {
+        let repository = RecordingRepository(dbManager: try DatabaseManager.openInMemory())
+        let capture = FakeAudioCapture()
+        let diarizer = FakeDiarizer()
+        let coordinator = RecordingCoordinator(
+            transcriber: FakeTranscriber(), diarizer: diarizer,
+            lmStudio: makeStubbedLMStudio(organizedJSON: minimalOrganizedJSON),
+            repository: repository, makeAudioCapture: { capture })
+
+        try await coordinator.prepareModels(
+            speechModel: SpeechModelConfiguration(modelName: "fake"), liveDiarizationEnabled: false)
+        try await coordinator.startRecording()
+        let recordingID = try #require(coordinator.currentRecording?.id)
+        defer { cleanUpTestAudio(for: recordingID) }
+        #expect(await diarizer.startStreamingCalled == false)
+
+        await coordinator.stopRecording()
+        #expect(await diarizer.diarizeFileCalled, "the final pass must still run regardless of the live toggle")
     }
 
     @Test("Pause and resume forward to the capture session and update state")

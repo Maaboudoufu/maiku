@@ -48,7 +48,7 @@ struct RootView: View {
         }
         .task {
             do {
-                let environment = try AppEnvironment()
+                let environment = try await AppEnvironment()
                 appEnvironment = environment
                 // Plan §9: check for anything the app never finished
                 // processing before showing the Library at all.

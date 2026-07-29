@@ -35,6 +35,11 @@ public final class RecordingCoordinator {
     private var audioCapture: (any AudioCapturing)?
     private var speechModel: SpeechModelConfiguration?
     private var streamingTasks: [Task<Void, Never>] = []
+    /// Plan §10.7's "Live diarization toggle" and §18's degrade-gracefully
+    /// order ("disabling live diarization before dropping audio or live
+    /// transcription"): gates only the streaming speaker labels, never the
+    /// file-based final pass after stop, which stays on regardless.
+    private var liveDiarizationEnabled = true
 
     /// - Parameter makeAudioCapture: builds a fresh capture session for each
     ///   recording — `AudioCaptureService`'s streams finish when it stops and
@@ -56,7 +61,9 @@ public final class RecordingCoordinator {
 
     // MARK: - Setup
 
-    public func prepareModels(speechModel: SpeechModelConfiguration) async throws {
+    public func prepareModels(
+        speechModel: SpeechModelConfiguration, liveDiarizationEnabled: Bool = true
+    ) async throws {
         state = .preparingModels
         do {
             try await transcriber.prepare(model: speechModel)
@@ -69,6 +76,7 @@ public final class RecordingCoordinator {
             throw wrapped
         }
         self.speechModel = speechModel
+        self.liveDiarizationEnabled = liveDiarizationEnabled
         state = .ready
     }
 
@@ -112,7 +120,9 @@ public final class RecordingCoordinator {
         }
 
         try await transcriber.startStreaming()
-        try await diarizer.startStreaming()
+        if liveDiarizationEnabled {
+            try await diarizer.startStreaming()
+        }
 
         audioCapture = capture
         currentRecording = recording
@@ -271,7 +281,9 @@ public final class RecordingCoordinator {
                 for await chunk in capture.speechAudio {
                     guard let buffer = chunk.makeBuffer() else { continue }
                     try? await self.transcriber.accept(buffer, at: chunk.startTime)
-                    try? await self.diarizer.accept(buffer, at: chunk.startTime)
+                    if self.liveDiarizationEnabled {
+                        try? await self.diarizer.accept(buffer, at: chunk.startTime)
+                    }
                 }
             })
 
@@ -298,20 +310,22 @@ public final class RecordingCoordinator {
                 }
             })
 
-        streamingTasks.append(
-            Task { [weak self] in
-                guard let self else { return }
-                do {
-                    for try await update in self.diarizer.updates() {
-                        guard !Task.isCancelled else { return }
-                        self.liveSpeakerTurns = update.turns
+        if liveDiarizationEnabled {
+            streamingTasks.append(
+                Task { [weak self] in
+                    guard let self else { return }
+                    do {
+                        for try await update in self.diarizer.updates() {
+                            guard !Task.isCancelled else { return }
+                            self.liveSpeakerTurns = update.turns
+                        }
+                    } catch {
+                        // Provisional speaker labels are exactly that — plan §6.4
+                        // explicitly allows losing live diarization without
+                        // ending the recording, same as losing live transcription.
                     }
-                } catch {
-                    // Provisional speaker labels are exactly that — plan §6.4
-                    // explicitly allows losing live diarization without
-                    // ending the recording, same as losing live transcription.
-                }
-            })
+                })
+        }
     }
 
     private func handleCaptureFailure(_ error: MaikuError) {

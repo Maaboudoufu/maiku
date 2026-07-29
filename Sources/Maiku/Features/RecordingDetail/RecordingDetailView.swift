@@ -417,13 +417,16 @@ struct RecordingDetailView: View {
     /// A `.failed` recording — an earlier stage never finished, not just
     /// notes — needs the whole pipeline re-run, not just LM Studio.
     private func retryProcessing() async {
-        guard let recording, let coordinator = appEnvironment?.coordinator else { return }
+        guard let recording, let appEnvironment else { return }
+        let coordinator = appEnvironment.coordinator
         isRetrying = true
         retryError = nil
         defer { isRetrying = false }
         do {
             if coordinator.state == .idle {
-                try await coordinator.prepareModels(speechModel: SpeechModelConfiguration(modelName: "tiny.en"))
+                let settings = (try? await appEnvironment.settingsStore.fetch()) ?? AppSettings()
+                try await coordinator.prepareModels(
+                    speechModel: settings.speechModel, liveDiarizationEnabled: settings.liveDiarizationEnabled)
             }
             try await coordinator.recoverAndProcess(recording)
             await load()

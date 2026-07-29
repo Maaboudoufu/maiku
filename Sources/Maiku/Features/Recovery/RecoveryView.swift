@@ -59,9 +59,12 @@ struct RecoveryView: View {
     /// for a fresh recording, since `recoverAndProcess` needs a loaded
     /// transcriber just as much as a live recording does.
     private func recoverAndProcess(_ recording: Recording) async throws {
-        guard let coordinator = appEnvironment?.coordinator else { return }
+        guard let appEnvironment else { return }
+        let coordinator = appEnvironment.coordinator
         if coordinator.state == .idle {
-            try await coordinator.prepareModels(speechModel: SpeechModelConfiguration(modelName: "tiny.en"))
+            let settings = (try? await appEnvironment.settingsStore.fetch()) ?? AppSettings()
+            try await coordinator.prepareModels(
+                speechModel: settings.speechModel, liveDiarizationEnabled: settings.liveDiarizationEnabled)
         }
         try await coordinator.recoverAndProcess(recording)
     }

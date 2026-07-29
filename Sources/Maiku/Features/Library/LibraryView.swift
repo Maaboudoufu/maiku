@@ -127,14 +127,18 @@ struct LibraryView: View {
     }
 
     private func startRecording() async {
-        guard let coordinator = appEnvironment?.coordinator else { return }
+        guard let appEnvironment else { return }
+        let coordinator = appEnvironment.coordinator
         setupError = nil
         do {
             try await MicrophonePermission.request()
             if coordinator.state == .idle {
                 isPreparingModels = true
                 defer { isPreparingModels = false }
-                try await coordinator.prepareModels(speechModel: SpeechModelConfiguration(modelName: "tiny.en"))
+                let settings = (try? await appEnvironment.settingsStore.fetch()) ?? AppSettings()
+                try await coordinator.prepareModels(
+                    speechModel: settings.speechModel,
+                    liveDiarizationEnabled: settings.liveDiarizationEnabled)
             }
             try await coordinator.startRecording()
             path.append(.recording)

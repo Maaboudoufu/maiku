@@ -8,16 +8,29 @@ import Foundation
 public final class AppEnvironment {
     public let databaseManager: DatabaseManager
     public let repository: RecordingRepository
+    public let settingsStore: SettingsStore
+    public let tokenStore: KeychainTokenStore
     public let lmStudioClient: LMStudioClient
     public let coordinator: RecordingCoordinator
     public let recoveryService: RecoveryService
 
-    public init() throws {
+    /// `async` so the very first `LMStudioClient`/`RecordingCoordinator` this
+    /// launch builds already reflects whatever was saved in Settings last
+    /// time (plan §16 M5), rather than always starting from defaults and
+    /// waiting for a screen to push a correction in.
+    public init() async throws {
         let databaseManager = try DatabaseManager.openStandard()
         let repository = RecordingRepository(dbManager: databaseManager)
-        let lmStudioClient = LMStudioClient()
+        let settingsStore = SettingsStore(dbManager: databaseManager)
+        let tokenStore = KeychainTokenStore()
+        let settings = (try? await settingsStore.fetch()) ?? AppSettings()
+        var lmStudioConfiguration = settings.lmStudioConfiguration
+        lmStudioConfiguration.apiToken = try? tokenStore.token()
+        let lmStudioClient = LMStudioClient(configuration: lmStudioConfiguration)
         self.databaseManager = databaseManager
         self.repository = repository
+        self.settingsStore = settingsStore
+        self.tokenStore = tokenStore
         self.lmStudioClient = lmStudioClient
         self.coordinator = RecordingCoordinator(
             transcriber: WhisperKitTranscriber(),
