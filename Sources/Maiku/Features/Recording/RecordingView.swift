@@ -33,6 +33,11 @@ struct RecordingView: View {
             }
             .accessibilityElement(children: .combine)
 
+            Text("You're responsible for any consent required to record this conversation.")
+                .font(theme.font.caption)
+                .foregroundStyle(theme.color.textSecondary)
+                .multilineTextAlignment(.center)
+
             PixelWaveform(levels: coordinator.metrics.waveform)
                 .frame(height: 72)
 

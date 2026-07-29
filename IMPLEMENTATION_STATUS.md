@@ -289,8 +289,86 @@ is correct, short of a long real recording through a live LM Studio instance. As
 milestone so far, the actual screens have not been seen rendering on this machine; see Known
 Limitations.
 
-### Milestone 5 — Library, search, export, and settings
-- [ ] Library, FTS5 search, tags, trash, five export formats, model management, settings
+### Milestone 5 — Library, search, export, and settings — **complete**
+
+Recording library and processing status cards already existed from Milestone 1
+(`LibraryView`, `ProcessingView`, `StatusBadge`); FTS5 search existed at the repository layer
+(`RecordingRepository.search(_:)`) with no UI reaching it. Trash's repository plumbing
+(`trash(id:)`, `deletePermanently(id:)`, the `trashedAt` column) existed too, but nothing in the
+app ever called it — this was the first milestone where trashing was reachable from any screen.
+This milestone's actual new work:
+
+- [x] Settings persistence — a singleton `appSettings` row (migration `v2`), `AppSettings`,
+      `SettingsStore`, and `KeychainTokenStore` for the LM Studio token (plan §12: Keychain, never
+      SQLite)
+- [x] `AppEnvironment` now loads persisted settings + the Keychain token before constructing
+      `LMStudioClient`, and every `prepareModels()` call site reads the configured speech model and
+      live-diarization toggle instead of a hardcoded `tiny.en`/always-on default
+- [x] `RecordingCoordinator` gates the *streaming* diarizer calls behind the live-diarization
+      toggle; the file-based final pass after stop always runs regardless
+- [x] `SpeechModelLibrary` — Whisper model discovery (`WhisperKit.recommendedModels()`), download,
+      and deletion, matching a plain variant name against WhisperKit's on-disk repo folder naming
+- [x] Settings screen — all six plan §10.7 sections: Audio (default input device), Transcription
+      (language, live-diarization toggle, model list with download/delete), LM Studio (base URL,
+      token, connection test, model picker, timeout), Storage (data directory size, audio
+      retention), Appearance (reduced motion/sound/CRT toggles), Privacy and diagnostics
+      (redacted-by-default diagnostics export)
+- [x] `search(_:filters:)` extended with a `SearchFilters` struct — status, speaker name, tag,
+      date range — joined against `recordings`; filters work standalone so a screen can browse by
+      filter with no text query. `fetchAllTags()`/`fetchAllSpeakerNames()` populate filter pickers.
+      Trashed recordings are now excluded from ordinary search by default, matching
+      `fetchAll(includeTrashed:)`'s existing convention
+- [x] Search screen — text query plus every filter, snippet-highlighted results
+- [x] Tags screen — distinct tags with per-tag recording counts, tapping one shows matching
+      recordings
+- [x] `RecordingRepository.restore(id:)` and `fetchTrashed()`; a Move to Trash/Restore action on
+      `RecordingDetailView`; a Trash screen with Restore and confirmed Delete Permanently (through
+      `RecoveryService.deletePermanently`, so the audio directory goes with it)
+- [x] `RecordingExporter` (`Sources/MaikuKit/Export/`) — all five plan §11.2 formats from one
+      `RecordingExportContext` snapshot: Markdown, plain text, JSON (a stable export schema, not
+      the internal DB shape), and SRT/VTT subtitles. Wired into `RecordingDetailView` as an Export
+      menu, writing through `NSSavePanel`
+- [x] `Docs/ARCHITECTURE.md` — deferred three times waiting for the module shape to settle; written
+      now that it has
+- [x] A short recording-consent reminder on the Recording screen (plan §12's other non-negotiable
+      that had no home until now)
+
+18 new tests across this work (settings store, Keychain store, live-diarization toggle,
+`SpeechModelLibrary`'s folder-matching, search filters, `fetchAllTags`/`fetchAllSpeakerNames`,
+restore/`fetchTrashed`, the exporter's five formats), 191 total, all passing.
+
+**Design decision — search filters by speaker *name*, not speaker id.** Plan §12 forbids
+persisting a reusable identity across recordings, so a `Speaker` row's id has no meaning outside
+the one recording it came from — the *only* thing that ever means "the same person" across two
+recordings is a name a user typed themselves. `SearchFilters.speakerName` matches `customName`
+exactly; an unrenamed "Speaker 1" is not filterable across recordings by design, not omission.
+
+**Design decision — tag filtering uses `json_each` against the organized-result JSON, not FTS5.**
+A tag is an identifier, not prose — matching it through FTS5's tokenizer risks a partial/stemmed
+match ("launch" matching "launching"). `json_each(organizedResults.json, '$.tags')` inside an
+`EXISTS` subquery gives an exact match instead, reusing SQLite's bundled JSON1 extension rather
+than adding a normalized tags table for a single equality check.
+
+**Design decision — `restore(id:)` infers the prior status rather than storing it.**
+`trash(id:)` overwrites `status` to `.trashed` with no separate column for what it was before.
+`errorMessage` is already set only alongside `.failed` and cleared whenever a stage completes, so
+it is the one already-persisted signal available: `restore(id:)` returns to `.failed` if that is
+set, `.complete` otherwise. Adding a dedicated `previousStatus` column was considered and rejected
+as one more piece of state to keep in sync for a case the existing data already answers correctly.
+
+**Design decision — no explicit input-device picker.** Plan §10.7 offers "Microphone selection
+**or** current default device" as alternatives. Routing `AVAudioEngine` to a specific non-default
+input device is a capture-layer change, not a Settings-screen one — Settings shows the current
+system default input device's name, read-only, which the plan's own wording allows.
+
+**Verification.** `./scripts/build.sh` and `./scripts/test.sh` both succeed (191/191). The
+`json_each` tag-filter query and the Whisper model repo-folder-naming heuristic were both
+verified against genuine risk of being wrong (an untested SQLite extension availability
+assumption; a folder-naming convention this codebase doesn't control) rather than assumed correct
+by construction — see `RecordingRepositoryTests.searchFiltersNarrowResults`/`fetchAllTagsCounts…`
+and `SpeechModelLibraryTests`. As with every milestone so far, the actual screens — Settings,
+Search, Tags, Trash, and the new Export menu — have not been seen rendering on this machine; see
+Known Limitations.
 
 ### Milestone 6 — Pixel polish, accessibility, and release readiness
 - [ ] Design system, Clawd assets, reduced motion, VoiceOver, icon, docs, tests, acceptance checklist
@@ -317,15 +395,11 @@ Limitations.
 
 ## Next task
 
-Begin Milestone 5 (library, search, export, and settings). FTS5 search already exists at the
-repository layer (`RecordingRepository.search(_:)`, built in Milestone 1) but has no UI —
-the Search sidebar destination is still the honest "arrives in a later milestone" placeholder.
-Also needed: Tags and Trash screens (repository support for trashing already exists), the five
-export formats (Markdown, TXT, JSON, SRT, VTT — none exist yet), speech-model management UI
-(download/select/delete a Whisper model — currently hardcoded to `tiny.en`), and the LM Studio
-/ storage / diagnostics Settings screens (`DiagnosticsExporter` exists from Milestone 2 but has
-no button anywhere yet). `Docs/ARCHITECTURE.md` is still outstanding (deferred three times now
-as the module shape kept shifting; the shape is unlikely to change much more after M5's screens
-land, so that milestone is a reasonable point to finally write it). Verifying the actual
-screens on a machine with a display remains outstanding too — see Known Limitations, unresolved
-since Milestone 1.
+Begin Milestone 6 (pixel polish, accessibility, and release readiness): the full 8-bit design
+system pass, wiring authorized Clawd assets to every `ClawdState` (one animation has already been
+supplied — `clawd_mic_wave_png_frames.zip` at the repo root, 8 frames at 110ms matching
+`.listening`; the placeholder component currently rendering in its place needs replacing state by
+state, not just for this one), Reduced Motion/effects controls, a VoiceOver and keyboard pass, an
+app icon and About screen, `THIRD_PARTY_NOTICES.md`, and the manual acceptance checklist from plan
+§17.4. Verifying the actual screens on a machine with a display remains outstanding too — see
+Known Limitations, unresolved since Milestone 1.
