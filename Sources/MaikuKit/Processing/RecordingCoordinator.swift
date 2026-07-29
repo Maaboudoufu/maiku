@@ -28,6 +28,7 @@ public final class RecordingCoordinator {
     private let transcriber: any SpeechTranscribing
     private let diarizer: any SpeakerDiarizing
     private let lmStudio: LMStudioClient
+    private let organizationPipeline: OrganizationPipeline
     private let repository: RecordingRepository
     private let makeAudioCapture: @Sendable () -> any AudioCapturing
 
@@ -48,6 +49,7 @@ public final class RecordingCoordinator {
         self.transcriber = transcriber
         self.diarizer = diarizer
         self.lmStudio = lmStudio
+        self.organizationPipeline = OrganizationPipeline(lmStudio: lmStudio)
         self.repository = repository
         self.makeAudioCapture = makeAudioCapture
     }
@@ -219,10 +221,9 @@ public final class RecordingCoordinator {
         do {
             let segments = try await repository.fetchSegments(recordingID: recording.id)
             let speakers = try await repository.fetchSpeakers(recordingID: recording.id)
-            let organized = try await lmStudio.organizeTranscript(
-                OrganizationRequest(
-                    recordingID: recording.id, recordedAt: recording.recordingStartedAt,
-                    durationSeconds: recording.durationSeconds, segments: segments, speakers: speakers))
+            let organized = try await organizationPipeline.organize(
+                recordingID: recording.id, recordedAt: recording.recordingStartedAt,
+                durationSeconds: recording.durationSeconds, segments: segments, speakers: speakers)
             state = .processing(.organizingFinal)
             try await repository.saveOrganizedResult(organized, recordingID: recording.id)
 
@@ -359,10 +360,9 @@ public final class RecordingCoordinator {
             recording.status = .organizingChunks
             try await save(recording)
             do {
-                let organized = try await lmStudio.organizeTranscript(
-                    OrganizationRequest(
-                        recordingID: recording.id, recordedAt: recording.recordingStartedAt,
-                        durationSeconds: recording.durationSeconds, segments: segments, speakers: speakers))
+                let organized = try await organizationPipeline.organize(
+                    recordingID: recording.id, recordedAt: recording.recordingStartedAt,
+                    durationSeconds: recording.durationSeconds, segments: segments, speakers: speakers)
                 state = .processing(.organizingFinal)
                 recording.status = .organizingFinal
                 recording.lmStudioModel = lmStudio.configuration.modelID
