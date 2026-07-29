@@ -1,0 +1,293 @@
+# Maiku — Implementation Status
+
+Last updated: 2026-07-29
+
+## Toolchain reality check (this machine)
+
+| Item | Value |
+|---|---|
+| macOS | 26.6 (25G72) |
+| Architecture | arm64 (Apple Silicon) |
+| Swift | 6.3.3 (swiftlang-6.3.3.1.3) |
+| SDK | MacOSX26.5.sdk (also 15.4, 15) |
+| Xcode | **not installed** — `xcode-select -p` → `/Library/Developer/CommandLineTools` |
+| LM Studio | not running at `http://127.0.0.1:1234` at time of assessment |
+
+### Deviation from plan §22 — build system
+
+`plan.md` §22 mandates `xcodebuild -scheme Maiku`. **Xcode is not installed on this machine**, only
+Command Line Tools, so `xcodebuild` is unavailable and no `.xcodeproj` can be built or generated.
+
+**Decision:** build Maiku as a **Swift Package Manager** package plus a bundling script that
+assembles a real `Maiku.app` (Info.plist, entitlements, ad-hoc code signature). This is required for
+microphone TCC permission, which will not be granted to a bare SwiftPM executable.
+
+- `scripts/build.sh` → `swift build` + `.app` assembly + `codesign` (exits nonzero on failure)
+- `scripts/test.sh` → `swift test` (exits nonzero on failure)
+- `scripts/lint.sh` → `swift format lint` when available
+
+The CLT SDK ships SwiftUI, AppKit, AVFoundation, AVFAudio and CoreAudio, so nothing in the plan's
+feature set is blocked by the missing Xcode. If Xcode is installed later, the same package opens
+directly in Xcode with no source changes; the scripts gain an `xcodebuild` path at that point.
+
+## Dependency versions (resolved, to be pinned)
+
+| Package | Version | Purpose | License |
+|---|---|---|---|
+| argmaxinc/WhisperKit | 0.18.0 | local Whisper transcription | MIT |
+| FluidInference/FluidAudio | 0.15.5 | VAD + speaker diarization | Apache-2.0 |
+| groue/GRDB.swift | 6.29.3 | SQLite persistence + FTS5 | MIT |
+
+Transitive: swift-transformers 1.1.9, swift-jinja 2.4.2, yyjson 0.12.0, swift-argument-parser 1.8.2,
+swift-collections 1.6.0, swift-crypto 4.5.1, swift-asn1 1.7.1. Full attribution lands in
+`THIRD_PARTY_NOTICES.md`.
+
+## Milestone checklist
+
+### Milestone 0 — Repository assessment and risk spike
+- [x] Inspect every existing file (repo contained only `plan.md`)
+- [x] Record build instructions and dependencies
+- [x] Identify minimum macOS/Xcode requirements from actual package versions
+- [x] Document dependency versions and licenses
+- [x] Confirm WhisperKit + FluidAudio + GRDB compile under the CLT-only toolchain
+- [x] Confirm the app can capture microphone audio
+- [x] Confirm WhisperKit transcribes a short local sample
+- [x] Confirm FluidAudio produces diarization output on a short sample
+- [x] Confirm LM Studio connection and strict JSON output
+
+**Exit criteria met.** Spike results below.
+
+#### Spike results (2026-07-28)
+
+Fixture: 15.6 s, 16 kHz mono WAV, three turns from two `say` voices
+(Samantha 0–4.3 s, Daniel 4.3–11.3 s, Samantha 11.3–15.6 s).
+
+| Path | Result |
+|---|---|
+| Compile | All three deps build under CLT-only SwiftPM, 37 s clean |
+| Microphone | `AVAudioEngine` input tap: 48 kHz mono, 72 000 frames in 1.5 s, peak 0.0344 |
+| WhisperKit `tiny.en` | 7 segments, transcript accurate apart from proper nouns ("Maker"/"dialization") |
+| FluidAudio diarization | 5 turns, correctly found **2** speakers |
+| GRDB FTS5 | `MATCH` + `snippet()` highlighting works |
+| LM Studio | `GET /v1/models` → 9 models; strict `json_schema` decoded cleanly in 14.5 s on `qwen3.5-9b-mlx` |
+
+Findings that change the implementation:
+
+1. **WhisperKit segment text carries special tokens.** `segment.text` returns
+   `<|startoftranscript|><|0.00|> Good morning…<|4.16|>`. The adapter must strip
+   `<|…|>` tokens before anything reaches the database, and must prefer word
+   timestamps over parsing those markers.
+2. **Diarization boundaries drift.** The first boundary landed at 4.25 s against
+   4.3 s ground truth, but the second landed at ~10.0 s against ~11.3 s, and the
+   middle turn was split across both speaker labels. Plan §6.4 smoothing is not
+   optional polish — it is load-bearing. Real (non-synthetic) voices should do
+   better; this needs re-measuring on a genuine multi-speaker recording.
+3. **Strict `json_schema` is reliable and honours `null`.** The model left
+   `ownerText`/`dueDateISO8601` null rather than guessing, and cited correct
+   segment IDs — the plan §7.4 hallucination controls are enforceable at the
+   schema layer. Use `"type": ["string","null"]` rather than omitting keys.
+4. **LM Studio autostarts.** The service was not listening until an `lms`
+   command woke it. The client must treat "not running" as an expected,
+   recoverable state, not an error.
+5. **Capture is 48 kHz mono; the speech stack wants 16 kHz mono.** `AVAudioConverter`
+   is required on the hot path.
+
+### Milestone 1 — Thin end-to-end vertical slice — **complete**
+
+Two parallel implementation runs were each cut off mid-flight by an API session limit; the
+remaining modules (persistence, the two speech adapters, and all four screens) were then written
+directly. Everything compiles, `dist/Maiku.app` builds and ad-hoc signs, and all 107 tests pass.
+Nothing below is a stub, a TODO, or a fake behind a real-looking API.
+
+| Module | State |
+|---|---|
+| Intelligence (LM Studio) | Client actor, models, prompt factory, strict JSON schemas, 22 tests incl. a mock server covering every error mapping |
+| Audio | Capture service, CAF writer, level meter, permission, 30 tests |
+| Design system | Theme, pixel components, Clawd mascot + placeholder art, asset manifest, 13 tests |
+| Speech adapters | `TranscriptTokenSanitizer`, `SpeakerAlignmentService`, `WhisperKitTranscriber` (bounded rolling window + stable/unstable merge), `FluidAudioDiarizer` (file-based canonical pass; streaming is a documented no-op), 21 tests |
+| Persistence | AppPaths, DatabaseManager, migrations (recordings/speakers/transcriptSegments/organizedResults + FTS5), RecordingRepository, 18 tests |
+| Integration | `RecordingCoordinator` (owns the full `RecordingState` machine, wires capture → transcription → diarization → alignment → LM Studio → persistence), `AppEnvironment` |
+| Screens | Library, Recording, Processing, RecordingDetail — real `NavigationStack` push flow inside `RootView`'s `NavigationSplitView` |
+
+Bugs found and fixed while integrating, all caught by tests or by reading the actual GRDB/
+AVFoundation source rather than by inspection alone:
+
+1. Loopback detection used `Network.IPv4Address.isLoopback`, which matches only `127.0.0.1`.
+   The whole `127.0.0.0/8` block is loopback (RFC 1122 §3.2.1.3), so maiku would have warned
+   that transcript text was leaving the machine when it was not.
+2. `AVAudioFile.read(into:)` does not guarantee draining a buffer in one call — a test assumed
+   it did and failed intermittently. Fixed by looping until exhausted; the writer itself was
+   already correct.
+3. A single isolated `AVAudioConverter` sample-rate conversion undershoots the ideal output
+   count by a one-time filter-priming latency (confirmed ~240 samples on a 4800-frame input,
+   reproduced identically with mono-only input, so it is not a downmix defect). A test's lower
+   bound was tighter than that legitimate floor; over a real reused-converter stream it
+   self-corrects to within ~0.3% of ideal, which the multi-call test already covered.
+4. `scripts/build.sh` did not copy `Resources/Clawd/` into the app bundle, so any future Clawd
+   artwork would sit in the source tree but never load at runtime (`ClawdAssetManifest` resolves
+   paths through `Bundle.main`, not SwiftPM's resource bundler).
+5. Two Swift 6 strict-concurrency shapes recurred across both speech adapters: `accept(_:at:)`
+   takes a non-`Sendable` `AVAudioPCMBuffer` no actor-isolated method can receive, and
+   `updates()` is declared synchronous, which an actor can only satisfy with a `nonisolated`
+   method — yet the transcriber's stream must be recreated every `startStreaming()`. Fixed by
+   extracting `Sendable` data before the actor hop, and by storing the per-recording stream as
+   `nonisolated(unsafe)` with a documented call-order invariant.
+
+Verification performed:
+- `./scripts/build.sh` and `./scripts/test.sh` both succeed (107/107 tests).
+- Launched `dist/Maiku.app` as a live process on this machine: it initialized `AppEnvironment`
+  without a `launchError`, opened its sandboxed database at
+  `~/Library/Containers/com.maiku.Maiku/Data/Library/Application Support/Maiku/Maiku.sqlite`
+  (confirmed via `lsof`), and the migrations ran — `sqlite3 … .tables` shows `recordings`,
+  `speakers`, `transcriptSegments`, `organizedResults`, and the `recordingSearch` FTS5 tables,
+  exactly matching `Migrations.swift`. Metal/RenderBox frameworks loaded, indicating SwiftUI's
+  rendering pipeline initialized.
+- **Not verified: the actual screens.** This machine has no attached display —
+  `screencapture` fails with "could not create image from display" — so the Library screen,
+  the Record button, the live waveform, and the full record → stop → process → detail flow were
+  never seen rendering or exercised by hand. What's confirmed above is real (a live process
+  correctly wiring its full dependency graph, including the sandbox and the database), but it is
+  not the same as watching the golden path work. This needs a machine with a display before it
+  can be called seen, not just built.
+
+Known gap carried forward rather than rushed: `RecordingCoordinator.startRecording()`
+constructs `AudioCaptureService()` directly instead of taking it injected, so the full
+record-to-complete lifecycle isn't unit-testable without a real microphone. The individual
+stages it calls (persistence, alignment, LM Studio mapping) all have coverage through their own
+modules' tests.
+
+### Milestone 2 — Reliable recording and recovery — **complete**
+
+State machine, pause/resume, rolling writes, meter/waveform, and stable/unstable merging were
+already real as of Milestone 1 (built correctly the first time rather than stubbed and revisited).
+This milestone's actual new work:
+
+- [x] `AudioCaptureService` injected behind an `AudioCapturing` protocol — the known gap flagged
+      at the end of Milestone 1 — unlocking a full start-to-complete lifecycle test with fakes
+- [x] Periodic disk-space checks during recording (was one-shot, at start, only)
+- [x] Interrupted-recording detection on next launch
+- [x] A three-way recovery screen: Recover and Process / Keep Audio Only / Delete
+- [x] General processing-stage retry, not just note-generation retry
+- [x] A local rotating diagnostic log, wired into every failure and lifecycle transition
+
+12 new tests across this work, 123 total, all passing.
+
+**Design decision — no separate recovery-manifest file.** Plan §9 asks for "a lightweight
+recovery manifest for an active recording" alongside "periodic database checkpoints," suggesting
+two mechanisms. `RecordingRepository.fetchInterrupted()` implements both with one: every stage
+transition already saves the recording's status before doing the stage's work, and
+`RecordingCoordinator` always drives a recording it starts all the way to `.complete` or
+`.failed` before returning control — so a row found at launch in any other status could only be
+interrupted, never abandoned by ordinary control flow. A second, parallel manifest file would
+duplicate this and could itself drift out of sync with the database it's describing. If a
+concrete need for a manifest distinct from the DB row surfaces later (e.g. surviving database
+corruption specifically), add it then — this is documented as a deliberate simplification, not an
+oversight.
+
+**Design decision — recovery restarts at `finalizingAudio`, not the exact interrupted stage.**
+Every stage replaces its own output wholesale (`replaceSegments`, `upsertSpeakers`,
+`saveOrganizedResult`), so re-running the whole finalization pipeline from the top is correct
+regardless of which stage was interrupted — just capable of redoing work a smarter per-stage
+resume would skip (e.g. re-transcribing when only note generation had actually failed). Simpler,
+still correct, and reuses the same code path for "recover an interrupted recording," "retry a
+`.failed` recording from the detail screen," and "retry organization only" (the narrower,
+existing action for a recording that completed but whose notes failed).
+
+**Verification.** `./scripts/build.sh` and `./scripts/test.sh` both succeed. The recovery
+scenario itself — kill the process mid-recording, relaunch, see the recovery screen, choose an
+action — was verified through `RecordingCoordinatorTests`/`RecoveryServiceTests` using fakes that
+reproduce exactly that shape (a recording persisted in a non-terminal status with a real audio
+file on disk, recovered via `recoverAndProcess`), not by literally killing the running GUI app
+and watching it happen — this machine still has no attached display, the same limitation noted
+under Milestone 1. The underlying logic is tested thoroughly; the actual screen has not been
+seen.
+
+### Milestone 3 — Final diarization and synchronized transcript — **complete**
+
+Final diarization, speaker/word alignment, smoothing, and speaker rename were already real as of
+Milestone 1. This milestone's actual new work:
+
+- [x] `AudioPlaybackService` — an actor wrapping `AVAudioPlayer`, since it isn't documented
+      thread-safe; polls position every 100ms rather than gating on `isPlaying`, so the exact
+      moment playback ends at end-of-file is still reported
+- [x] A persistent compact audio player (play/pause, scrubber, speed) shown across every tab in
+      `RecordingDetailView`
+- [x] Click-to-seek: clicking a transcript segment's timestamp or a quote seeks and starts
+      playback, not merely cues a paused player
+- [x] Current-segment highlighting during playback
+- [x] Inline transcript editing, marking the edited segment `.userEdited` so a future
+      reprocess preserves it — commits on focus loss, not only `.onSubmit`, since a
+      vertical-axis `TextField` lets Return insert a newline instead of submitting on macOS
+- [x] Real streaming provisional speaker labels, replacing the Milestone 1 no-op
+
+14 new tests (5 pure-logic, 9 for `AudioPlaybackService`) plus one opt-in real-model integration
+test, 137 total, all passing.
+
+**Design decision — streaming diarization reuses the offline pipeline instead of adopting
+FluidAudio's separate streaming protocol.** FluidAudio ships two APIs: `DiarizerManager`
+(what the final, canonical pass already uses) and a distinct `Diarizer` protocol implemented by
+Sortformer/LS-EEND, built for true frame-by-frame streaming. Adopting the latter for live
+provisional labels would mean a second model download, a different API entirely, and — worse —
+live speaker numbering with no guaranteed relationship to the file-based pass's numbering for the
+*same* recording. Instead, streaming periodically re-runs `performCompleteDiarization` — the
+identical call `diarizeFile(at:)` makes — over a bounded, trimmed rolling window (6s flush
+interval, 30s cap, the same shape as `WhisperKitTranscriber`'s window). This works only because
+`DiarizerManager.speakerManager` persists across repeated calls on the *same* instance, so a
+voice recognised in one flush keeps its label in the next — an empirical claim, not something
+inferable from the type signatures alone, and it is verified for real: `MAIKU_INTEGRATION_TESTS=1`
+gates a test that feeds a checked-in four-turn two-speaker fixture through actual streaming
+against the real downloaded models and confirms the final turn's label already appeared in the
+first flush. It passed on this machine.
+
+**Real bug found and fixed while reasoning through that design, not by inspection.**
+`speakerManager` was never reset between diarization sessions on the shared, long-lived
+`FluidAudioDiarizer` instance `AppEnvironment` constructs once for the app's lifetime. Recording
+B's canonical final pass could inherit speaker state from recording A's final pass, or from the
+same recording's own live session — either way biasing what plan §6.4 requires to be
+authoritative. Fixed by resetting to a fresh `SpeakerManager()` at the top of both
+`startStreaming()` and `diarizeFile(at:)`.
+
+**Verification.** `./scripts/build.sh` and `./scripts/test.sh` succeed, including the opt-in
+integration test run once with the real models. As with Milestones 1 and 2, the actual screens —
+the player controls, the highlighting, the live speaker badges — have not been seen rendering on
+this machine; see Known Limitations.
+
+### Milestone 4 — Complete organization pipeline
+- [ ] Chunker, both schemas, strict JSON, source refs, quote validation, repair retry, retry action
+
+### Milestone 5 — Library, search, export, and settings
+- [ ] Library, FTS5 search, tags, trash, five export formats, model management, settings
+
+### Milestone 6 — Pixel polish, accessibility, and release readiness
+- [ ] Design system, Clawd assets, reduced motion, VoiceOver, icon, docs, tests, acceptance checklist
+
+## Known limitations
+
+- **No Xcode on this machine.** No `.xcodeproj`, no `xcodebuild`, and no XCUITest runner. Plan
+  §17.3 UI tests are blocked until Xcode is installed; the underlying view models get unit
+  coverage instead. Unit tests themselves work fine — `swift-testing` ships inside the Command
+  Line Tools, but SwiftPM only wires its search paths when driven by Xcode, so `scripts/test.sh`
+  adds `-F …/Library/Developer/Frameworks` and an rpath to
+  `…/Library/Developer/usr/lib` (for `lib_TestingInterop.dylib`). Without those, `swift test`
+  fails with "no such module 'Testing'" and then a dlopen error.
+- **No authorized Clawd artwork present.** Per plan §14 asset rule, a clearly labelled placeholder
+  mascot component ships against the documented filenames until real assets are supplied.
+- Notarization and Developer ID signing are unavailable (no credentials, no Xcode). The build
+  script ad-hoc signs for local development only.
+- **No attached display on this machine** (`screencapture` fails with "could not create image
+  from display"). Every screen in the app has been built and compiles, and the process itself
+  has been verified live (launches, initializes its full dependency graph, opens its sandboxed
+  database) — but no screen has actually been seen rendering, and no button has actually been
+  clicked. This has been true since Milestone 1 and remains true through Milestone 2; it is
+  recorded here once rather than repeated under every milestone that doesn't resolve it.
+
+## Next task
+
+Begin Milestone 3 (final diarization and synchronized transcript). The file-based diarization
+pass, speaker alignment, and speaker rename already work (built during Milestone 1); what's
+missing is `AudioPlaybackService` and the click-to-seek/current-segment-highlighting transcript
+UI in `RecordingDetailView`, which the plan explicitly scopes to this milestone and which
+`RecordingDetailView` currently and honestly omits. Also still outstanding: `Docs/ARCHITECTURE.md`
+(deferred twice now that the module shape has kept shifting; write it once M3's playback layer
+lands too), and verifying the actual screens on a machine with a display — see the note under
+Milestone 1, still unresolved after Milestone 2.
