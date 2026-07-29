@@ -296,6 +296,55 @@ struct RecordingRepositoryTests {
         #expect(all.map(\.id) == [recording.id])
     }
 
+    @Test("Restoring a completed recording returns it to complete, not failed")
+    func restoreCompletedRecording() async throws {
+        let repo = try makeRepository()
+        let recording = Recording(title: "Completed", status: .complete)
+        try await repo.save(recording)
+        try await repo.trash(id: recording.id)
+
+        try await repo.restore(id: recording.id)
+
+        let fetched = try await repo.fetch(id: recording.id)
+        #expect(fetched?.status == .complete)
+        #expect(fetched?.trashedAt == nil)
+    }
+
+    @Test("Restoring a recording that failed returns it to failed, using the persisted error")
+    func restoreFailedRecording() async throws {
+        let repo = try makeRepository()
+        var recording = Recording(title: "Failed", status: .failed)
+        recording.errorStage = "organizingFinal"
+        recording.errorMessage = "LM Studio was unreachable."
+        try await repo.save(recording)
+        try await repo.trash(id: recording.id)
+
+        try await repo.restore(id: recording.id)
+
+        let fetched = try await repo.fetch(id: recording.id)
+        #expect(fetched?.status == .failed)
+        #expect(fetched?.trashedAt == nil)
+    }
+
+    @Test("fetchTrashed returns only trashed recordings, most recent first")
+    func fetchTrashedOrdersByMostRecentlyTrashed() async throws {
+        let repo = try makeRepository()
+        let kept = Recording(title: "Kept")
+        try await repo.save(kept)
+
+        let trashedFirst = Recording(title: "Trashed First")
+        try await repo.save(trashedFirst)
+        try await repo.trash(id: trashedFirst.id)
+
+        let trashedSecond = Recording(title: "Trashed Second")
+        try await repo.save(trashedSecond)
+        try await repo.trash(id: trashedSecond.id)
+
+        let trashed = try await repo.fetchTrashed()
+        #expect(trashed.map(\.id) == [trashedSecond.id, trashedFirst.id])
+        #expect(!trashed.contains { $0.id == kept.id })
+    }
+
     @Test("Interrupted recordings are exactly those in a non-terminal status")
     func fetchInterruptedFindsNonTerminalStatuses() async throws {
         let repo = try makeRepository()

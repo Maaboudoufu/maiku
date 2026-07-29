@@ -270,6 +270,35 @@ public struct RecordingRepository: Sendable {
         }
     }
 
+    /// Recordings currently in the trash, most recently trashed first.
+    public func fetchTrashed() async throws -> [Recording] {
+        try await read { db in
+            try Recording
+                .filter(Column("trashedAt") != nil)
+                .order(Column("trashedAt").desc)
+                .fetchAll(db)
+        }
+    }
+
+    /// Undoes `trash(id:)`. `errorMessage` is only ever set alongside a
+    /// `.failed` status and cleared whenever a stage completes (see
+    /// `RecordingCoordinator`), so it is the one already-persisted signal of
+    /// which non-trashed status this recording actually reached — nothing
+    /// records that directly, since `trash(id:)` overwrites `status` rather
+    /// than stashing it.
+    public func restore(id: UUID) async throws {
+        try await write { db in
+            guard var recording = try Recording.filter(key: id.uuidString).fetchOne(db) else {
+                return
+            }
+            recording.status = recording.errorMessage != nil ? .failed : .complete
+            recording.trashedAt = nil
+            recording.updatedAt = Date()
+            try recording.update(db)
+            try Self.rebuildSearchRow(recordingID: id, db: db)
+        }
+    }
+
     /// Removes the recording row and, via `ON DELETE CASCADE`, its speakers,
     /// segments and organized result. The FTS index is not reached by that
     /// cascade — SQLite does not enforce foreign keys against virtual
@@ -405,6 +434,10 @@ public struct RecordingRepository: Sendable {
             if let status = filters.status {
                 whereClauses.append("recordings.status = ?")
                 arguments.append(status.rawValue)
+            } else {
+                // Matches fetchAll(includeTrashed:)'s default: trash is out
+                // of the ordinary view unless a screen asks for it by name.
+                whereClauses.append("recordings.trashedAt IS NULL")
             }
             if let startDate = filters.startDate {
                 whereClauses.append("recordings.recordingStartedAt >= ?")

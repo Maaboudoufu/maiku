@@ -90,10 +90,20 @@ struct RecordingDetailView: View {
 
     private func header(_ recording: Recording) -> some View {
         VStack(alignment: .leading, spacing: theme.space.sm) {
-            TextField("Title", text: $titleDraft)
-                .font(theme.font.heading)
-                .textFieldStyle(.plain)
-                .onSubmit { Task { await saveTitle() } }
+            HStack(alignment: .firstTextBaseline) {
+                TextField("Title", text: $titleDraft)
+                    .font(theme.font.heading)
+                    .textFieldStyle(.plain)
+                    .onSubmit { Task { await saveTitle() } }
+                Spacer()
+                if recording.status == .trashed {
+                    Button("Restore") { Task { await restore() } }
+                        .buttonStyle(.pixel(.secondary))
+                } else {
+                    Button("Move to Trash") { Task { await moveToTrash() } }
+                        .buttonStyle(.pixel(.destructive))
+                }
+            }
 
             HStack(spacing: theme.space.md) {
                 Text(Self.dateFormatter.string(from: recording.recordingStartedAt))
@@ -433,6 +443,18 @@ struct RecordingDetailView: View {
         } catch {
             retryError = (error as? MaikuError) ?? .databaseFailure("\(error)")
         }
+    }
+
+    private func moveToTrash() async {
+        guard let repository = appEnvironment?.repository else { return }
+        try? await repository.trash(id: recordingID)
+        await load()
+    }
+
+    private func restore() async {
+        guard let repository = appEnvironment?.repository else { return }
+        try? await repository.restore(id: recordingID)
+        await load()
     }
 
     private static let dateFormatter: DateFormatter = {

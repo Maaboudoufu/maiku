@@ -68,10 +68,10 @@ struct RootView: View {
             SearchView()
         case .tags:
             TagsView()
+        case .trash:
+            TrashView()
         case .settings:
             SettingsView()
-        case .trash:
-            ComingLaterView(destination: destination)
         }
     }
 }
@@ -92,24 +92,6 @@ private struct LaunchErrorView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(theme.space.xxl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.color.surface)
-    }
-}
-
-private struct ComingLaterView: View {
-    @Environment(\.theme) private var theme
-    let destination: AppDestination
-
-    var body: some View {
-        VStack(spacing: theme.space.sm) {
-            Text(destination.title)
-                .font(theme.font.heading)
-                .foregroundStyle(theme.color.textPrimary)
-            Text("Arrives in a later milestone.")
-                .font(theme.font.body)
-                .foregroundStyle(theme.color.textSecondary)
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.color.surface)
     }
