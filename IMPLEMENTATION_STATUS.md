@@ -252,8 +252,42 @@ integration test run once with the real models. As with Milestones 1 and 2, the 
 the player controls, the highlighting, the live speaker badges — have not been seen rendering on
 this machine; see Known Limitations.
 
-### Milestone 4 — Complete organization pipeline
-- [ ] Chunker, both schemas, strict JSON, source refs, quote validation, repair retry, retry action
+### Milestone 4 — Complete organization pipeline — **complete**
+
+Strict JSON schemas, source segment references, and the invalid-output repair retry all already
+existed from Milestone 1 — `OrganizationSchema`, `PromptFactory`, and `LMStudioClient`'s
+one-repair-attempt-then-report behavior were built correctly the first time. This milestone's
+actual new work:
+
+- [x] `TranscriptChunker` — segment-boundary-respecting, silence-gap-preferring, configurable
+      character budget, overlap between chunks
+- [x] The reduce pass: `PromptFactory.reduce`, `OrganizationSchema` reused unchanged (the output
+      shape doesn't change), `LMStudioClient.reduceChunkSummaries`
+- [x] `OutputValidator` — a second, independent check after decoding: every sourced claim's
+      segment ids verified against the real transcript, discarded if none are valid; every
+      quote's text verified against its cited segment after whitespace normalization; a
+      hallucinated owner/speaker reference nulled rather than discarding the whole item
+- [x] `OrganizationPipeline` — the orchestrator: chunk → map → reduce → validate, with a
+      single-chunk shortcut so a short recording never pays for a wasted extra round trip
+- [x] Retry organization independently of transcription — already existed from Milestone 1/2
+      (`retryOrganization(for:)`), now routed through the same pipeline
+- [x] Editable organized notes — the milestone's own exit criteria names this explicitly; the
+      Notes tab was still read-only, now each section is inline-editable
+
+29 new tests (10 chunker, 16 validator, 3 pipeline), 166 total, all passing.
+
+**Design decision — `OrganizationPipeline` sequences chunks, never runs them concurrently.**
+A single local LM Studio server processes one inference at a time regardless of how many
+requests arrive concurrently; overlapping requests would only queue behind each other while
+making a failure harder to attribute to a specific chunk. Sequential is simpler and costs
+nothing a local server could actually have delivered anyway.
+
+**Verification.** `./scripts/build.sh` and `./scripts/test.sh` both succeed. The multi-chunk
+test confirms the pipeline fires exactly the expected number of LM Studio requests (map count
+plus one reduce) against a stub server — the closest available proof the orchestration logic
+is correct, short of a long real recording through a live LM Studio instance. As with every
+milestone so far, the actual screens have not been seen rendering on this machine; see Known
+Limitations.
 
 ### Milestone 5 — Library, search, export, and settings
 - [ ] Library, FTS5 search, tags, trash, five export formats, model management, settings
@@ -283,11 +317,15 @@ this machine; see Known Limitations.
 
 ## Next task
 
-Begin Milestone 3 (final diarization and synchronized transcript). The file-based diarization
-pass, speaker alignment, and speaker rename already work (built during Milestone 1); what's
-missing is `AudioPlaybackService` and the click-to-seek/current-segment-highlighting transcript
-UI in `RecordingDetailView`, which the plan explicitly scopes to this milestone and which
-`RecordingDetailView` currently and honestly omits. Also still outstanding: `Docs/ARCHITECTURE.md`
-(deferred twice now that the module shape has kept shifting; write it once M3's playback layer
-lands too), and verifying the actual screens on a machine with a display — see the note under
-Milestone 1, still unresolved after Milestone 2.
+Begin Milestone 5 (library, search, export, and settings). FTS5 search already exists at the
+repository layer (`RecordingRepository.search(_:)`, built in Milestone 1) but has no UI —
+the Search sidebar destination is still the honest "arrives in a later milestone" placeholder.
+Also needed: Tags and Trash screens (repository support for trashing already exists), the five
+export formats (Markdown, TXT, JSON, SRT, VTT — none exist yet), speech-model management UI
+(download/select/delete a Whisper model — currently hardcoded to `tiny.en`), and the LM Studio
+/ storage / diagnostics Settings screens (`DiagnosticsExporter` exists from Milestone 2 but has
+no button anywhere yet). `Docs/ARCHITECTURE.md` is still outstanding (deferred three times now
+as the module shape kept shifting; the shape is unlikely to change much more after M5's screens
+land, so that milestone is a reasonable point to finally write it). Verifying the actual
+screens on a machine with a display remains outstanding too — see Known Limitations, unresolved
+since Milestone 1.
