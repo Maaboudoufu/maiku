@@ -165,6 +165,39 @@ public struct RecordingRepository: Sendable {
         public let recordingID: UUID
         public let titleSnippet: String
         public let transcriptSnippet: String
+        public let status: RecordingStatus
+        public let recordingStartedAt: Date
+    }
+
+    /// Structural narrowing for `search(_:filters:)` (plan §11.1). Every
+    /// field is independent and optional; set only the ones a screen offers.
+    ///
+    /// `speakerName` rather than a speaker id: plan §12 forbids persisting a
+    /// reusable identity across recordings, so the *only* thing that ever
+    /// means "the same person" across two different recordings is a name a
+    /// user typed themselves — an unrenamed diarizer label ("Speaker 1")
+    /// means nothing outside the one recording it came from.
+    public struct SearchFilters: Sendable, Equatable {
+        public var status: RecordingStatus?
+        public var speakerName: String?
+        public var tag: String?
+        public var startDate: Date?
+        public var endDate: Date?
+
+        public init(
+            status: RecordingStatus? = nil, speakerName: String? = nil, tag: String? = nil,
+            startDate: Date? = nil, endDate: Date? = nil
+        ) {
+            self.status = status
+            self.speakerName = speakerName
+            self.tag = tag
+            self.startDate = startDate
+            self.endDate = endDate
+        }
+
+        var isEmpty: Bool {
+            status == nil && speakerName == nil && tag == nil && startDate == nil && endDate == nil
+        }
     }
 
     private let dbManager: DatabaseManager
@@ -350,27 +383,122 @@ public struct RecordingRepository: Sendable {
     /// Full-text search across title, transcript, speaker names, and notes
     /// (plan §11.1). Returns nothing for a query with no usable tokens
     /// rather than throwing — an empty search field is not an error.
-    public func search(_ query: String) async throws -> [SearchHit] {
-        guard let pattern = FTS5Pattern(matchingAllTokensIn: query) else { return [] }
+    ///
+    /// - Parameter filters: structural narrowing (date, speaker, tag, status)
+    ///   applied alongside the free-text query, or on their own when `query`
+    ///   is empty — plan §11.1's "allow filters by date, speaker, tag, and
+    ///   status" reads as browsing by filter, not only refining a search.
+    public func search(_ query: String, filters: SearchFilters = SearchFilters()) async throws -> [SearchHit] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty || !filters.isEmpty else { return [] }
+        let pattern = trimmed.isEmpty ? nil : FTS5Pattern(matchingAllTokensIn: trimmed)
+        guard trimmed.isEmpty || pattern != nil else { return [] }
+
         return try await read { db in
-            let rows = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT recordingID,
-                           snippet(recordingSearch, 1, '→', '←', '…', 8) AS titleSnippet,
-                           snippet(recordingSearch, 2, '→', '←', '…', 12) AS transcriptSnippet
-                    FROM recordingSearch
-                    WHERE recordingSearch MATCH ?
-                    ORDER BY rank
-                    """,
-                arguments: [pattern])
+            var whereClauses: [String] = []
+            var arguments: [(any DatabaseValueConvertible)?] = []
+
+            if let pattern {
+                whereClauses.append("recordingSearch MATCH ?")
+                arguments.append(pattern)
+            }
+            if let status = filters.status {
+                whereClauses.append("recordings.status = ?")
+                arguments.append(status.rawValue)
+            }
+            if let startDate = filters.startDate {
+                whereClauses.append("recordings.recordingStartedAt >= ?")
+                arguments.append(startDate)
+            }
+            if let endDate = filters.endDate {
+                whereClauses.append("recordings.recordingStartedAt <= ?")
+                arguments.append(endDate)
+            }
+            if let speakerName = filters.speakerName {
+                whereClauses.append(
+                    "EXISTS (SELECT 1 FROM speakers WHERE speakers.recordingID = recordings.id AND speakers.customName = ?)"
+                )
+                arguments.append(speakerName)
+            }
+            if let tag = filters.tag {
+                // json_each walks the organizedResults blob's "tags" array so
+                // this matches a whole tag exactly, rather than tokenizing it
+                // through FTS5 the way free-text search does — a tag is an
+                // identifier, not prose.
+                whereClauses.append(
+                    """
+                    EXISTS (
+                        SELECT 1 FROM organizedResults, json_each(organizedResults.json, '$.tags')
+                        WHERE organizedResults.recordingID = recordings.id AND json_each.value = ?)
+                    """)
+                arguments.append(tag)
+            }
+
+            let sql = """
+                SELECT recordingSearch.recordingID,
+                       snippet(recordingSearch, 1, '→', '←', '…', 8) AS titleSnippet,
+                       snippet(recordingSearch, 2, '→', '←', '…', 12) AS transcriptSnippet,
+                       recordings.status AS status,
+                       recordings.recordingStartedAt AS recordingStartedAt
+                FROM recordingSearch
+                JOIN recordings ON recordings.id = recordingSearch.recordingID
+                WHERE \(whereClauses.joined(separator: " AND "))
+                ORDER BY \(pattern != nil ? "rank" : "recordings.recordingStartedAt DESC")
+                """
+            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
             return rows.compactMap { row -> SearchHit? in
-                guard let id = UUID(uuidString: row["recordingID"]) else { return nil }
+                guard let id = UUID(uuidString: row["recordingID"]),
+                    let status = RecordingStatus(rawValue: row["status"] as String)
+                else { return nil }
                 return SearchHit(
                     recordingID: id,
                     titleSnippet: row["titleSnippet"],
-                    transcriptSnippet: row["transcriptSnippet"])
+                    transcriptSnippet: row["transcriptSnippet"],
+                    status: status,
+                    recordingStartedAt: row["recordingStartedAt"])
             }
+        }
+    }
+
+    public struct TagCount: Sendable, Equatable, Identifiable {
+        public var id: String { tag }
+        public let tag: String
+        public let recordingCount: Int
+    }
+
+    /// Every tag in use across non-trashed recordings, with how many
+    /// recordings carry it — feeds both the Tags screen and Search's tag
+    /// filter (plan §11.1, §16 Milestone 5).
+    public func fetchAllTags() async throws -> [TagCount] {
+        try await read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT json_each.value AS tag, COUNT(DISTINCT organizedResults.recordingID) AS count
+                    FROM organizedResults, json_each(organizedResults.json, '$.tags')
+                    JOIN recordings ON recordings.id = organizedResults.recordingID
+                    WHERE recordings.trashedAt IS NULL
+                    GROUP BY json_each.value
+                    ORDER BY json_each.value COLLATE NOCASE
+                    """)
+            return rows.map { TagCount(tag: $0["tag"], recordingCount: $0["count"]) }
+        }
+    }
+
+    /// Every name a user has given a speaker, across non-trashed recordings.
+    /// Feeds Search's speaker filter — see the "no persistent identity" note
+    /// on `SearchFilters`.
+    public func fetchAllSpeakerNames() async throws -> [String] {
+        try await read { db in
+            try String.fetchAll(
+                db,
+                sql: """
+                    SELECT DISTINCT speakers.customName
+                    FROM speakers
+                    JOIN recordings ON recordings.id = speakers.recordingID
+                    WHERE speakers.customName IS NOT NULL AND recordings.trashedAt IS NULL
+                    ORDER BY speakers.customName COLLATE NOCASE
+                    """)
         }
     }
 

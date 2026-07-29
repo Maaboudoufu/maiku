@@ -144,6 +144,105 @@ struct RecordingRepositoryTests {
         #expect(noMatch.isEmpty)
     }
 
+    @Test("Filters narrow search by status, date, speaker, and tag")
+    func searchFiltersNarrowResults() async throws {
+        let repo = try makeRepository()
+
+        let launch = Recording(
+            title: "Launch Planning", status: .complete,
+            recordingStartedAt: Date(timeIntervalSince1970: 1_000_000))
+        try await repo.save(launch)
+        let launchSpeaker = Speaker(recordingID: launch.id, diarizerLabel: "1", customName: "Priya")
+        try await repo.upsertSpeakers([launchSpeaker], recordingID: launch.id)
+        try await repo.saveOrganizedResult(
+            OrganizedRecording(title: "Launch Planning", tags: ["launch", "roadmap"]), recordingID: launch.id)
+
+        let retro = Recording(
+            title: "Team Retro", status: .failed,
+            recordingStartedAt: Date(timeIntervalSince1970: 2_000_000))
+        try await repo.save(retro)
+        let retroSpeaker = Speaker(recordingID: retro.id, diarizerLabel: "1", customName: "Jordan")
+        try await repo.upsertSpeakers([retroSpeaker], recordingID: retro.id)
+        try await repo.saveOrganizedResult(
+            OrganizedRecording(title: "Team Retro", tags: ["retro"]), recordingID: retro.id)
+
+        // Status alone, no text query.
+        let failedOnly = try await repo.search("", filters: .init(status: .failed))
+        #expect(failedOnly.map(\.recordingID) == [retro.id])
+
+        // Date range alone.
+        let beforeRetro = try await repo.search(
+            "", filters: .init(endDate: Date(timeIntervalSince1970: 1_500_000)))
+        #expect(beforeRetro.map(\.recordingID) == [launch.id])
+
+        // Speaker alone.
+        let byJordan = try await repo.search("", filters: .init(speakerName: "Jordan"))
+        #expect(byJordan.map(\.recordingID) == [retro.id])
+
+        // Tag alone — an exact match, "launch" must not also match "roadmap".
+        let byTag = try await repo.search("", filters: .init(tag: "launch"))
+        #expect(byTag.map(\.recordingID) == [launch.id])
+        let byOtherTag = try await repo.search("", filters: .init(tag: "roadmap"))
+        #expect(byOtherTag.map(\.recordingID) == [launch.id])
+
+        // Text query plus a filter that rules out the otherwise-matching text hit.
+        let titleWordButWrongStatus = try await repo.search("Retro", filters: .init(status: .complete))
+        #expect(titleWordButWrongStatus.isEmpty)
+
+        // No text and no filters: nothing, not "everything".
+        let empty = try await repo.search("")
+        #expect(empty.isEmpty)
+    }
+
+    @Test("fetchAllTags counts distinct recordings per tag and excludes trash")
+    func fetchAllTagsCountsRecordings() async throws {
+        let repo = try makeRepository()
+        let first = Recording(title: "First")
+        try await repo.save(first)
+        try await repo.saveOrganizedResult(OrganizedRecording(title: "First", tags: ["launch"]), recordingID: first.id)
+
+        let second = Recording(title: "Second")
+        try await repo.save(second)
+        try await repo.saveOrganizedResult(OrganizedRecording(title: "Second", tags: ["launch", "retro"]), recordingID: second.id)
+
+        let trashed = Recording(title: "Trashed")
+        try await repo.save(trashed)
+        try await repo.saveOrganizedResult(OrganizedRecording(title: "Trashed", tags: ["launch"]), recordingID: trashed.id)
+        try await repo.trash(id: trashed.id)
+
+        let tags = try await repo.fetchAllTags()
+        #expect(tags == [
+            RecordingRepository.TagCount(tag: "launch", recordingCount: 2),
+            RecordingRepository.TagCount(tag: "retro", recordingCount: 1),
+        ])
+    }
+
+    @Test("fetchAllSpeakerNames returns distinct, non-nil names, excluding trash")
+    func fetchAllSpeakerNamesIsDistinctAndExcludesTrash() async throws {
+        let repo = try makeRepository()
+        let meeting1 = Recording(title: "Meeting 1")
+        try await repo.save(meeting1)
+        try await repo.upsertSpeakers(
+            [Speaker(recordingID: meeting1.id, diarizerLabel: "1", customName: "Priya"),
+             Speaker(recordingID: meeting1.id, diarizerLabel: "2")],
+            recordingID: meeting1.id)
+
+        let meeting2 = Recording(title: "Meeting 2")
+        try await repo.save(meeting2)
+        try await repo.upsertSpeakers(
+            [Speaker(recordingID: meeting2.id, diarizerLabel: "1", customName: "Priya")],
+            recordingID: meeting2.id)
+
+        let trashed = Recording(title: "Trashed Meeting")
+        try await repo.save(trashed)
+        try await repo.upsertSpeakers(
+            [Speaker(recordingID: trashed.id, diarizerLabel: "1", customName: "Ghost")],
+            recordingID: trashed.id)
+        try await repo.trash(id: trashed.id)
+
+        #expect(try await repo.fetchAllSpeakerNames() == ["Priya"])
+    }
+
     @Test("Deleting a recording removes it from search")
     func deletionRemovesFromSearch() async throws {
         let repo = try makeRepository()

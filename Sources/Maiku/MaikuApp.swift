@@ -64,9 +64,11 @@ struct RootView: View {
         switch destination {
         case .library:
             LibraryView()
+        case .search:
+            SearchView()
         case .settings:
             SettingsView()
-        case .search, .tags, .trash:
+        case .tags, .trash:
             ComingLaterView(destination: destination)
         }
     }
