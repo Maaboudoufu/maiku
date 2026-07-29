@@ -164,6 +164,29 @@ public struct ChunkSummary: Codable, Sendable, Equatable {
     }
 }
 
+/// Pass 2's input when a recording needed more than one chunk (plan §7.2):
+/// every chunk's extracted claims, not the raw transcript — the reduce pass
+/// combines and deduplicates what pass 1 already found, it does not
+/// re-extract from scratch.
+public struct ReduceRequest: Sendable, Equatable {
+    public var recordingID: UUID
+    public var recordedAt: Date
+    public var durationSeconds: TimeInterval
+    public var chunkSummaries: [ChunkSummary]
+    public var speakers: [Speaker]
+
+    public init(
+        recordingID: UUID, recordedAt: Date, durationSeconds: TimeInterval,
+        chunkSummaries: [ChunkSummary], speakers: [Speaker]
+    ) {
+        self.recordingID = recordingID
+        self.recordedAt = recordedAt
+        self.durationSeconds = durationSeconds
+        self.chunkSummaries = chunkSummaries
+        self.speakers = speakers
+    }
+}
+
 // MARK: - Wire types
 
 struct ChatMessage: Sendable, Equatable {

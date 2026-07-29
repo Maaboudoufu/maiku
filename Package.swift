@@ -31,6 +31,7 @@ let package = Package(
         .testTarget(
             name: "MaikuTests",
             dependencies: ["MaikuKit"],
+            resources: [.copy("Fixtures")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]

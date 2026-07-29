@@ -44,24 +44,40 @@ public actor LMStudioClient {
 
     // MARK: - Organization
 
+    /// A single pass over the whole transcript. `OrganizationPipeline` is what
+    /// decides whether this suffices (a recording short enough for one
+    /// `TranscriptChunker` chunk) or whether `summarizeChunk` /
+    /// `reduceChunkSummaries` are needed instead — this method itself has no
+    /// chunking ceiling beyond whatever the loaded model's own context holds,
+    /// so a transcript that does not fit comes back as
+    /// `.lmStudioContextTooLarge` rather than being split here.
     public func organizeTranscript(_ request: OrganizationRequest) async throws -> OrganizedRecording
     {
-        // ponytail: Milestone 1 sends the whole transcript in one pass, so the
-        // ceiling is the loaded model's context — a long meeting comes back as
-        // .lmStudioContextTooLarge rather than being split. Milestone 4 puts
-        // TranscriptChunker in front, maps summarizeChunk over the chunks and
-        // reduces them through this same call.
         try await structuredCompletion(
             messages: PromptFactory.organization(request),
             schema: OrganizationSchema.finalReduction(),
             schemaName: "organized_recording")
     }
 
+    /// Map half of map-reduce (plan §7.2 pass 1): what one chunk supports on
+    /// its own.
     public func summarizeChunk(_ request: ChunkSummaryRequest) async throws -> ChunkSummary {
         try await structuredCompletion(
             messages: PromptFactory.chunkExtraction(request),
             schema: OrganizationSchema.chunkExtraction(),
             schemaName: "chunk_summary")
+    }
+
+    /// Reduce half (plan §7.2 pass 2): every chunk's claims combined and
+    /// deduplicated into one `OrganizedRecording`. Same response shape as
+    /// `organizeTranscript`, so the same schema — the difference is entirely
+    /// in what the model is shown (`PromptFactory.reduce` presents chunk
+    /// summaries, never the raw transcript).
+    public func reduceChunkSummaries(_ request: ReduceRequest) async throws -> OrganizedRecording {
+        try await structuredCompletion(
+            messages: PromptFactory.reduce(request),
+            schema: OrganizationSchema.finalReduction(),
+            schemaName: "organized_recording")
     }
 
     // MARK: - Structured completion

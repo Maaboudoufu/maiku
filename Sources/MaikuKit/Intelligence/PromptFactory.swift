@@ -79,6 +79,39 @@ enum PromptFactory {
         return [ChatMessage(role: "system", content: system), ChatMessage(role: "user", content: user)]
     }
 
+    /// Pass 2 (plan §7.2): combines every chunk's already-extracted claims
+    /// into one coherent result. The model sees chunk summaries, not the raw
+    /// transcript — it deduplicates and organizes what pass 1 already found
+    /// rather than re-extracting, so nothing here needs `transcriptBlock`.
+    static func reduce(_ request: ReduceRequest) -> [ChatMessage] {
+        let system = """
+            You combine several partial summaries of one meeting, produced one per part of the \
+            recording, into a single coherent set of notes. You return one JSON object matching \
+            the supplied schema.
+
+            Merge duplicate or overlapping claims across parts into one entry, keeping every \
+            sourceSegmentIDs value that supported it. Write title, shortSummary, detailedSummary \
+            and organizedSections fresh, from everything the parts together support — do not just \
+            concatenate the per-part summaries. speakerSummary gets one entry per listed speaker, \
+            drawn from what the parts attribute to them.
+
+            \(rules)
+            """
+
+        let user = """
+            Recording metadata
+            - recorded: \(request.recordedAt.formatted(.iso8601))
+            - duration: \(seconds(request.durationSeconds))
+
+            \(speakerList(request.speakers))
+
+            \(chunkSummariesBlock(request.chunkSummaries))
+
+            Combine every part above into the required JSON object for the whole recording.
+            """
+        return [ChatMessage(role: "system", content: system), ChatMessage(role: "user", content: user)]
+    }
+
     /// Second and final attempt after a decode failure (plan §7.4). Quotes the
     /// validation error so the model can fix the specific field.
     static func repair(validationError: String) -> ChatMessage {
@@ -108,6 +141,29 @@ enum PromptFactory {
         return "\(transcriptOpen)\n\(lines.joined(separator: "\n"))\n\(transcriptClose)"
     }
 
+    /// Chunk summaries are already-extracted claims, not raw speech, but they
+    /// were produced by a model reading transcript content — the same
+    /// untrusted-data fence applies, just wrapping JSON instead of segment
+    /// lines. Unlike `sanitize(_:)`, newlines are kept: they are the JSON's
+    /// own structure, not something a chunk summary could use to forge a
+    /// fake line of metadata the way raw transcript text could.
+    static func chunkSummariesBlock(_ summaries: [ChunkSummary]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let parts = summaries.enumerated().map { index, summary -> String in
+            let json =
+                (try? encoder.encode(summary)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            return "Part \(index + 1):\n\(sanitizeFence(json))"
+        }
+        return "\(transcriptOpen)\n\(parts.joined(separator: "\n\n"))\n\(transcriptClose)"
+    }
+
+    private static func sanitizeFence(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: transcriptOpen, with: "[removed]")
+            .replacingOccurrences(of: transcriptClose, with: "[removed]")
+    }
+
     private static func speakerList(_ speakers: [Speaker]) -> String {
         guard !speakers.isEmpty else {
             return "Speakers: not identified. Leave every speakerID null."
@@ -119,9 +175,7 @@ enum PromptFactory {
     /// Keeps transcript content from closing its own fence or forging a new
     /// line of transcript metadata.
     private static func sanitize(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: transcriptOpen, with: "[removed]")
-            .replacingOccurrences(of: transcriptClose, with: "[removed]")
+        sanitizeFence(text)
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
             .trimmingCharacters(in: .whitespaces)

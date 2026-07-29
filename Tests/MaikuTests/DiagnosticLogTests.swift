@@ -18,7 +18,7 @@ struct DiagnosticLogTests {
 
     @Test("A logged line is readable back")
     func readsBackWhatWasLogged() async throws {
-        try await withTemporaryLogDirectory { directory in
+        await withTemporaryLogDirectory { directory in
             let log = DiagnosticLog(directory: directory)
             await log.log("hello world", level: .info)
             let contents = await log.readAll()
@@ -29,7 +29,7 @@ struct DiagnosticLogTests {
 
     @Test("The log directory is created on first write")
     func createsDirectoryOnFirstWrite() async throws {
-        try await withTemporaryLogDirectory { directory in
+        await withTemporaryLogDirectory { directory in
             let nested = directory.appending(path: "nested")
             let log = DiagnosticLog(directory: nested)
             await log.log("first line")
@@ -58,7 +58,7 @@ struct DiagnosticLogTests {
 
     @Test("Rotations beyond the configured count are dropped, not accumulated forever")
     func dropsOldestRotationBeyondLimit() async throws {
-        try await withTemporaryLogDirectory { directory in
+        await withTemporaryLogDirectory { directory in
             let log = DiagnosticLog(directory: directory, maxFileSize: 1, maxRotations: 2)
             for index in 1...5 {
                 await log.log("entry \(index), padded to exceed the one-byte threshold")
