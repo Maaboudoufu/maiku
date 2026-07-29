@@ -23,7 +23,13 @@ public enum SpeechModelLibrary {
     // heuristic against the local cache instead. Longest-name-first avoids
     // "small" wrongly matching a "small.en" folder. Upgrade if a future
     // WhisperKit version exposes a real "is variant cached" API.
+    /// Override for tests. Never set in the shipping app. `nonisolated(unsafe)`:
+    /// set once, synchronously, before a test's concurrent work begins —
+    /// mirrors `AppPaths.overrideBaseDirectory`.
+    nonisolated(unsafe) public static var overrideModelsDirectory: URL?
+
     private static var modelsDirectory: URL {
+        if let overrideModelsDirectory { return overrideModelsDirectory }
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         return documents.appending(path: "huggingface/models/argmaxinc/whisperkit-coreml")
     }
