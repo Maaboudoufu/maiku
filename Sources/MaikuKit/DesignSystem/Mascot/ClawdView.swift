@@ -37,7 +37,11 @@ public struct ClawdView: View {
             // Per-state, not a single app-wide flag: art lands one state at a
             // time (README), so a state with no art of its own must keep
             // showing this badge even after another state's art is installed.
-            if !ClawdArtwork.isFullyInstalled(ClawdAssetManifest.standard.entry(for: state)) {
+            // Processing states never carry this badge — ProcessingSprite is
+            // finished chrome, not a stand-in for missing Clawd artwork.
+            if !isProcessingState,
+                !ClawdArtwork.isFullyInstalled(ClawdAssetManifest.standard.entry(for: state))
+            {
                 placeholderBadge
             }
         }
@@ -46,15 +50,31 @@ public struct ClawdView: View {
         .accessibilityValue(state.accessibilityValue ?? "")
     }
 
+    private var isProcessingState: Bool {
+        switch state {
+        case .transcribing, .organizing: true
+        default: false
+        }
+    }
+
     @ViewBuilder private var sprite: some View {
-        let entry = ClawdAssetManifest.standard.entry(for: state)
-        if reduceMotion || entry.frames.count <= 1 {
-            // Reduce Motion: hold the first frame. The caption and the VoiceOver
-            // label still say what is happening.
-            frame(entry, index: 0)
-        } else {
-            TimelineView(.periodic(from: .now, by: entry.frameDuration)) { context in
-                frame(entry, index: Self.frameIndex(at: context.date, entry: entry))
+        switch state {
+        case .transcribing:
+            ProcessingSprite(frameDuration: 0.15, reduceMotion: reduceMotion)
+                .frame(width: size, height: size)
+        case .organizing:
+            ProcessingSprite(frameDuration: 0.22, reduceMotion: reduceMotion)
+                .frame(width: size, height: size)
+        default:
+            let entry = ClawdAssetManifest.standard.entry(for: state)
+            if reduceMotion || entry.frames.count <= 1 {
+                // Reduce Motion: hold the first frame. The caption and the
+                // VoiceOver label still say what is happening.
+                frame(entry, index: 0)
+            } else {
+                TimelineView(.periodic(from: .now, by: entry.frameDuration)) { context in
+                    frame(entry, index: Self.frameIndex(at: context.date, entry: entry))
+                }
             }
         }
     }
@@ -107,6 +127,74 @@ public struct ClawdView: View {
         guard count > 1, entry.frameDuration > 0 else { return 0 }
         let ticks = Int(date.timeIntervalSinceReferenceDate / entry.frameDuration)
         return ((ticks % count) + count) % count
+    }
+}
+
+// MARK: - Processing
+
+/// Three notched blocks bouncing in a wave — the chrome shown for
+/// `.transcribing` and `.organizing` (plan §14 names both as states the
+/// mascot occupies, not necessarily as states requiring bespoke Clawd
+/// artwork). Deliberately abstract rather than another imported image:
+/// hand-drawn, AI-supplied processing frames repeatedly needed re-cropping
+/// and re-registering to stop jittering (`Resources/Clawd/README.md`), and a
+/// pixel-perfect wave built from the same `PixelCorner` notch every other
+/// piece of chrome already uses can't jitter — every position is computed,
+/// not sliced from a photo.
+private struct ProcessingSprite: View {
+    @Environment(\.theme) private var theme
+
+    let frameDuration: Double
+    let reduceMotion: Bool
+
+    /// One full wave cycle. `0` is resting; more negative lifts a block
+    /// higher. Three blocks share this pattern staggered by `phaseSpacing`,
+    /// the same "one lit segment chasing along" idea `PixelProgress`'s
+    /// indeterminate bar already uses.
+    private static let bobPattern: [CGFloat] = [0, -0.4, -1, -0.4, 0, 0]
+    private static let phaseSpacing = 2
+
+    var body: some View {
+        if reduceMotion {
+            wave(frameIndex: 0)
+        } else {
+            TimelineView(.periodic(from: .now, by: frameDuration)) { context in
+                let ticks = Int(context.date.timeIntervalSinceReferenceDate / frameDuration)
+                let frameIndex = ((ticks % Self.bobPattern.count) + Self.bobPattern.count) % Self.bobPattern.count
+                wave(frameIndex: frameIndex)
+            }
+        }
+    }
+
+    private func wave(frameIndex: Int) -> some View {
+        GeometryReader { proxy in
+            let side = min(proxy.size.width, proxy.size.height)
+            let dot = (side * 0.22).rounded()
+            let gap = (side * 0.16).rounded()
+            let lift = dot * 0.6
+            // A fixed absolute notch, not scaled to `dot` — every other pixel
+            // component (buttons, panels) notches by the same few points
+            // regardless of its own size; scaling the notch with the shape
+            // over-cut these at their small size until they read as plus
+            // signs instead of the subtly notched squares used elsewhere.
+            let shape = PixelCorner(step: theme.corner.medium)
+            HStack(spacing: gap) {
+                ForEach(0..<3, id: \.self) { column in
+                    shape
+                        .fill(theme.color.accent)
+                        .frame(width: dot, height: dot)
+                        .offset(y: bob(column: column, frameIndex: frameIndex) * lift)
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .center)
+        }
+    }
+
+    private func bob(column: Int, frameIndex: Int) -> CGFloat {
+        let pattern = Self.bobPattern
+        let count = pattern.count
+        let phase = ((frameIndex + column * Self.phaseSpacing) % count + count) % count
+        return pattern[phase]
     }
 }
 

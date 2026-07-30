@@ -546,6 +546,42 @@ was a per-source-image registration problem, not a systemic animation bug. Fixed
 per-row offset precisely and re-compositing each row onto a blank 384×512 canvas shifted to
 cancel it out, so all 8 frames of each sequence now share one consistent baseline.
 
+### Trim listening's 8th frame; replace paused with a still (2026-07-30, later)
+
+`listening`'s original 8th frame showed the mic being set down — a one-way "put it away" beat in a
+sequence meant to loop continuously while recording. Playing it every loop iteration read as the
+character repeatedly fumbling the mic, not talking. Cut to the 7-frame raise-and-hold cycle that
+actually loops cleanly; `ClawdAssetManifest`, its literal filename test, and `Resources/Clawd/
+README.md` all updated to match.
+
+`paused`'s 6-frame animation was replaced outright with a single still, in the same glowing style
+as `idle` and the app icon — a "waiting" pose has no motion worth animating, and the new asset
+unifies the visual language with the other supplied states better than the animated original did.
+
+### Bigger pause icon; processing states go code-drawn (2026-07-30, later still)
+
+`paused`'s pause-symbol badge was scaled up ~1.5× relative to the character (cropped the two
+elements apart, scaled the icon, recomposited) — the original supplied proportion read as too
+small next to the character at typical display sizes.
+
+**`transcribing`/`organizing` no longer use supplied artwork at all.** Both AI-generated contact
+sheets needed re-registration once already (see the choppy-animation fix above) and still didn't
+read as intentional, finished art. Deleted both sets of PNGs outright and replaced them with
+`ProcessingSprite` — a small SwiftUI view in `ClawdView.swift` that draws three `PixelCorner`
+blocks bouncing in a wave, the same "one lit segment chasing along" idea `PixelProgress`'s
+indeterminate bar already uses elsewhere. Every position is computed from the frame clock, the
+same pattern `ClawdView`'s existing `TimelineView`-driven animation already uses — there is no
+image to mis-register, so this class of bug cannot recur for these two states. `ClawdAssetManifest`
+now returns an empty `Entry` for both (no manifest files back them), `ClawdView` renders
+`ProcessingSprite` directly for both states and skips the "Placeholder art" badge entirely — this
+is finished chrome, not a stand-in for missing Clawd artwork.
+
+One real bug caught before landing: the block's notch was first sized as a fraction of the
+block's own size (`dot * 0.25`), unlike every other `PixelCorner` use in the app, which notches by
+a small fixed value regardless of element size. At the sprite's small on-screen size that
+over-cut each corner until the blocks read as plus signs instead of subtly notched squares. Fixed
+by switching to `theme.corner.medium`, the same fixed notch every button and panel already uses.
+
 ## Next task
 
 All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
@@ -554,8 +590,9 @@ visually confirmed end-to-end. What remains:
 1. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — now runnable with today's display access,
    not yet executed.
 2. **Four of nine Clawd states still have no authorized artwork** — `ready`, `complete`, `error`,
-   and `lmStudioDisconnected` do not; every other state does. `Resources/Clawd/README.md` has the
-   exact filenames and format each remaining state needs.
+   and `lmStudioDisconnected` do not. `transcribing`/`organizing` are intentionally no longer part
+   of this count — they're code-drawn chrome now, not states waiting on supplied art.
+   `Resources/Clawd/README.md` has the exact filenames and format each remaining state needs.
 3. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
    steps to run once a Developer ID certificate exists).
 

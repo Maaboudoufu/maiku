@@ -33,11 +33,13 @@ public struct ClawdAssetManifest: Sendable {
     /// Every filename plan §14 names, in the order it names them. Authorised
     /// art must use these exact names.
     ///
-    /// `listening` ships 8 frames, not the 4 plan §14's suggested manifest
-    /// sketched — the first authorized art actually supplied for this
-    /// mascot came as an 8-frame loop (110ms/frame; see
-    /// `Resources/Clawd/README.md`), and the plan's own frame list was
-    /// explicitly a *suggested* starting manifest, not a fixed frame count.
+    /// `listening` ships 7 frames, not the 4 plan §14's suggested manifest
+    /// sketched — the authorized art actually supplied for this mascot came
+    /// as an 8-frame loop (110ms/frame; see `Resources/Clawd/README.md`),
+    /// with the 8th (the mic being set down) dropped as a distinct beat that
+    /// didn't belong in a continuously-looping "still listening" cycle. The
+    /// plan's own frame list was explicitly a *suggested* starting manifest,
+    /// not a fixed frame count.
     public let fileNames = [
         "clawd_idle_notebook.png",
         "clawd_ready_mic.png",
@@ -48,29 +50,7 @@ public struct ClawdAssetManifest: Sendable {
         "clawd_listening_05.png",
         "clawd_listening_06.png",
         "clawd_listening_07.png",
-        "clawd_listening_08.png",
-        "clawd_paused_01.png",
-        "clawd_paused_02.png",
-        "clawd_paused_03.png",
-        "clawd_paused_04.png",
-        "clawd_paused_05.png",
-        "clawd_paused_06.png",
-        "clawd_transcribing_01.png",
-        "clawd_transcribing_02.png",
-        "clawd_transcribing_03.png",
-        "clawd_transcribing_04.png",
-        "clawd_transcribing_05.png",
-        "clawd_transcribing_06.png",
-        "clawd_transcribing_07.png",
-        "clawd_transcribing_08.png",
-        "clawd_organizing_01.png",
-        "clawd_organizing_02.png",
-        "clawd_organizing_03.png",
-        "clawd_organizing_04.png",
-        "clawd_organizing_05.png",
-        "clawd_organizing_06.png",
-        "clawd_organizing_07.png",
-        "clawd_organizing_08.png",
+        "clawd_paused.png",
         "clawd_complete.png",
         "clawd_error.png",
         "clawd_lmstudio_disconnected.png",
@@ -93,40 +73,21 @@ public struct ClawdAssetManifest: Sendable {
                     "clawd_listening_01.png", "clawd_listening_02.png",
                     "clawd_listening_03.png", "clawd_listening_04.png",
                     "clawd_listening_05.png", "clawd_listening_06.png",
-                    "clawd_listening_07.png", "clawd_listening_08.png",
+                    "clawd_listening_07.png",
                 ], frameDuration: 0.11)
         case .paused:
-            // 140ms/frame — the midpoint of the authorized artwork's own
-            // suggested 120-160ms range (Resources/Clawd/README.md).
-            Entry(
-                [
-                    "clawd_paused_01.png", "clawd_paused_02.png",
-                    "clawd_paused_03.png", "clawd_paused_04.png",
-                    "clawd_paused_05.png", "clawd_paused_06.png",
-                ], frameDuration: 0.14)
-        case .transcribing:
-            // 180ms/frame — between listening's 110ms (a live, urgent loop)
-            // and organizing's 220ms (a slower, more deliberate one); this is
-            // an ambient "thinking" loop, not something the user is driving.
-            Entry(
-                [
-                    "clawd_transcribing_01.png", "clawd_transcribing_02.png",
-                    "clawd_transcribing_03.png", "clawd_transcribing_04.png",
-                    "clawd_transcribing_05.png", "clawd_transcribing_06.png",
-                    "clawd_transcribing_07.png", "clawd_transcribing_08.png",
-                ], frameDuration: 0.18)
-        case .organizing:
-            // Same supplied frames as transcribing (one "processing" loop was
-            // authorized, covering both stages), held slightly longer per
-            // frame — organizing is the heavier LM Studio step, transcribing
-            // the quicker one.
-            Entry(
-                [
-                    "clawd_organizing_01.png", "clawd_organizing_02.png",
-                    "clawd_organizing_03.png", "clawd_organizing_04.png",
-                    "clawd_organizing_05.png", "clawd_organizing_06.png",
-                    "clawd_organizing_07.png", "clawd_organizing_08.png",
-                ], frameDuration: 0.22)
+            // A still, matching idle's treatment — paused is a held state,
+            // not something actively looping (the 6-frame animation this
+            // replaced had no motion worth animating in a "waiting" pose).
+            Entry(["clawd_paused.png"])
+        case .transcribing, .organizing:
+            // No manifest files: `ClawdView` renders a code-drawn
+            // `ProcessingSprite` for both states directly and never reads
+            // this entry. An AI-supplied contact sheet was tried here twice
+            // and needed re-registration both times to stop visibly jittering
+            // (`Resources/Clawd/README.md`) — a procedurally animated shape
+            // can't drift out of registration, so there is nothing to supply.
+            Entry([])
         case .complete:
             Entry(["clawd_complete.png"])
         case .error:

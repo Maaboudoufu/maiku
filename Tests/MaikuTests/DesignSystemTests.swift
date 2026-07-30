@@ -37,41 +37,26 @@ struct ClawdManifestTests {
                 "clawd_listening_05.png",
                 "clawd_listening_06.png",
                 "clawd_listening_07.png",
-                "clawd_listening_08.png",
-                "clawd_paused_01.png",
-                "clawd_paused_02.png",
-                "clawd_paused_03.png",
-                "clawd_paused_04.png",
-                "clawd_paused_05.png",
-                "clawd_paused_06.png",
-                "clawd_transcribing_01.png",
-                "clawd_transcribing_02.png",
-                "clawd_transcribing_03.png",
-                "clawd_transcribing_04.png",
-                "clawd_transcribing_05.png",
-                "clawd_transcribing_06.png",
-                "clawd_transcribing_07.png",
-                "clawd_transcribing_08.png",
-                "clawd_organizing_01.png",
-                "clawd_organizing_02.png",
-                "clawd_organizing_03.png",
-                "clawd_organizing_04.png",
-                "clawd_organizing_05.png",
-                "clawd_organizing_06.png",
-                "clawd_organizing_07.png",
-                "clawd_organizing_08.png",
+                "clawd_paused.png",
                 "clawd_complete.png",
                 "clawd_error.png",
                 "clawd_lmstudio_disconnected.png",
             ])
     }
 
-    @Test("Every state resolves to frames the manifest declares")
+    @Test("Every state resolves to frames the manifest declares, except the code-drawn processing states")
     func everyStateHasFrames() {
         let manifest = ClawdAssetManifest.standard
         for state in allStates {
             let entry = manifest.entry(for: state)
-            #expect(!entry.frames.isEmpty, "\(state) has no frames")
+            // .transcribing/.organizing are rendered by ClawdView's own
+            // ProcessingSprite, never from manifest files — an intentional
+            // empty entry, not a missing one.
+            let isProcessingState =
+                if case .transcribing = state { true } else if case .organizing = state { true } else { false }
+            if !isProcessingState {
+                #expect(!entry.frames.isEmpty, "\(state) has no frames")
+            }
             #expect(entry.frameDuration > 0, "\(state) would divide by zero when animating")
             for frame in entry.frames {
                 #expect(manifest.fileNames.contains(frame), "\(frame) is not in the manifest")
