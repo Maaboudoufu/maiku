@@ -276,7 +276,7 @@ struct SettingsView: View {
     private func load() async {
         guard let appEnvironment, !isLoaded else { return }
         isLoaded = true
-        settings = (try? await appEnvironment.settingsStore.fetch()) ?? AppSettings()
+        settings = appEnvironment.currentSettings
         baseURLText = settings.lmStudioBaseURL.absoluteString
         apiToken = (try? appEnvironment.tokenStore.token()) ?? ""
         recommendedModels = SpeechModelLibrary.recommendedModels()
@@ -288,6 +288,7 @@ struct SettingsView: View {
     private func persistSettings() async {
         guard let appEnvironment else { return }
         try? await appEnvironment.settingsStore.save(settings)
+        appEnvironment.currentSettings = settings
     }
 
     private func persistToken() async {

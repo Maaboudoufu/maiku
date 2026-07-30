@@ -57,6 +57,13 @@ struct RecordingView: View {
         .onChange(of: coordinator.state) { _, newState in
             if case .processing = newState, path.last != .processing {
                 path.append(.processing)
+                appEnvironment?.playSound(.recordingStopped)
+            }
+            if newState == .complete {
+                appEnvironment?.playSound(.processingComplete)
+            }
+            if case .failed = newState {
+                appEnvironment?.playSound(.error)
             }
         }
     }

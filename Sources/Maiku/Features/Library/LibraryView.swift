@@ -141,6 +141,7 @@ struct LibraryView: View {
                     liveDiarizationEnabled: settings.liveDiarizationEnabled)
             }
             try await coordinator.startRecording()
+            appEnvironment.playSound(.recordingStarted)
             path.append(.recording)
         } catch {
             setupError = (error as? MaikuError) ?? .audioEngineFailed("\(error)")

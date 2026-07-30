@@ -7,7 +7,7 @@ import SwiftUI
 /// (plan §10.5). Callers pass `nil` rather than faking a number.
 public struct PixelProgress: View {
     @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.effectiveReduceMotion) private var reduceMotion
 
     private let value: Double?
     private let cells: Int

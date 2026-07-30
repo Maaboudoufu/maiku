@@ -10,7 +10,7 @@ import SwiftUI
 /// art arrives.
 public struct ClawdView: View {
     @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.effectiveReduceMotion) private var reduceMotion
 
     private let state: ClawdState
     private let size: CGFloat

@@ -17,10 +17,17 @@ struct MaikuApp: App {
 /// placeholders rather than buttons that pretend to do something they don't —
 /// Search, Tags, Trash and full Settings land in Milestone 5.
 struct RootView: View {
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @State private var destination: AppDestination? = .library
     @State private var appEnvironment: AppEnvironment?
     @State private var launchError: MaikuError?
     @State private var interruptedRecordings: [Recording] = []
+
+    private var effectiveReduceMotion: Bool {
+        EffectsGating.effectiveReduceMotion(
+            override: appEnvironment?.currentSettings.reducedMotionOverride,
+            systemReduceMotion: systemReduceMotion)
+    }
 
     var body: some View {
         Group {
@@ -44,6 +51,19 @@ struct RootView: View {
             } else {
                 ProgressView("Starting maiku…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        // Plan §13.2: a per-user override wins over the system setting for
+        // every Reduce-Motion-aware view beneath this point (ClawdView,
+        // PixelProgress) — set once, here, rather than at each call site.
+        // `accessibilityReduceMotion` itself is get-only, hence the separate key.
+        .environment(\.effectiveReduceMotion, effectiveReduceMotion)
+        .overlay {
+            if EffectsGating.showsCRTEffect(
+                crtEffectsEnabled: appEnvironment?.currentSettings.crtEffectsEnabled ?? false,
+                reduceMotion: effectiveReduceMotion)
+            {
+                CRTOverlay().ignoresSafeArea()
             }
         }
         .task {

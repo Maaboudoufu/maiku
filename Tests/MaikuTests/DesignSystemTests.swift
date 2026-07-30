@@ -190,3 +190,52 @@ struct PixelComponentTests {
         #expect(PixelProgress.filledCells(value: 0.5, cells: 0) == 0)
     }
 }
+
+@Suite("Effects gating")
+struct EffectsGatingTests {
+
+    @Test("A user override wins over the system Reduce Motion setting, in both directions")
+    func reduceMotionOverrideWins() {
+        #expect(EffectsGating.effectiveReduceMotion(override: true, systemReduceMotion: false))
+        #expect(!EffectsGating.effectiveReduceMotion(override: false, systemReduceMotion: true))
+    }
+
+    @Test("With no override, the system Reduce Motion setting passes through")
+    func reduceMotionFallsBackToSystem() {
+        #expect(EffectsGating.effectiveReduceMotion(override: nil, systemReduceMotion: true))
+        #expect(!EffectsGating.effectiveReduceMotion(override: nil, systemReduceMotion: false))
+    }
+
+    @Test("CRT effects require both the toggle on and Reduce Motion off")
+    func crtEffectRequiresBoth() {
+        #expect(EffectsGating.showsCRTEffect(crtEffectsEnabled: true, reduceMotion: false))
+        #expect(!EffectsGating.showsCRTEffect(crtEffectsEnabled: false, reduceMotion: false))
+        #expect(!EffectsGating.showsCRTEffect(crtEffectsEnabled: true, reduceMotion: true))
+        #expect(!EffectsGating.showsCRTEffect(crtEffectsEnabled: false, reduceMotion: true))
+    }
+}
+
+@Suite("Sound effects")
+struct SoundEffectsTests {
+
+    private final class SpyPlayer: SoundPlaying {
+        private(set) var played: [SoundCue] = []
+        func play(_ cue: SoundCue) { played.append(cue) }
+    }
+
+    @Test("An enabled gate forwards the cue to the underlying player")
+    func enabledGateForwardsCue() {
+        let spy = SpyPlayer()
+        let gated = GatedSoundPlayer(player: spy, isEnabled: { true })
+        gated.play(.recordingStarted)
+        #expect(spy.played == [.recordingStarted])
+    }
+
+    @Test("A disabled gate never reaches the underlying player")
+    func disabledGateIsANoOp() {
+        let spy = SpyPlayer()
+        let gated = GatedSoundPlayer(player: spy, isEnabled: { false })
+        gated.play(.error)
+        #expect(spy.played.isEmpty)
+    }
+}
