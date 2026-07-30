@@ -54,9 +54,10 @@ actually arrived. `paused` shipped as a still, not the plan's sketched
 animation: the first supplied `paused` art was a 6-frame loop, later replaced
 outright with a single still in the same glowing style as `idle` and the app
 icon, once it became clear a "waiting" pose had no motion worth animating;
-its pause-symbol badge was then scaled up roughly 1.5× relative to the
-character, since the originally supplied proportion read as too small at
-typical display sizes. The plan's manifest was always a *suggested* starting
+its pause-symbol badge was then scaled up roughly 2.2× relative to the
+character, in two passes (first 1.5×, then bigger again on request), since
+the originally supplied proportion read as too small at typical display
+sizes. The plan's manifest was always a *suggested* starting
 point, not a fixed contract; the filename and state each frame belongs to is
 the actual contract (`ClawdAssetManifest`). A partial set is fine regardless:
 any frame that fails to resolve falls back to the placeholder for that frame
