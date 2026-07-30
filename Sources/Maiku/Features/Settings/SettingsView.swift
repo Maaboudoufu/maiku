@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State private var dataDirectorySize: String?
     @State private var includeTitlesInDiagnostics = false
     @State private var diagnosticsMessage: String?
+    @State private var showsAbout = false
 
     var body: some View {
         ScrollView {
@@ -42,6 +43,7 @@ struct SettingsView: View {
                 storageSection
                 appearanceSection
                 privacySection
+                aboutSection
             }
             .padding(theme.space.lg)
             .frame(maxWidth: 640)
@@ -49,6 +51,16 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.color.surface)
         .task { await load() }
+        .sheet(isPresented: $showsAbout) { AboutView() }
+    }
+
+    // MARK: - About
+
+    private var aboutSection: some View {
+        PixelPanel("About") {
+            Button("About maiku…") { showsAbout = true }
+                .buttonStyle(.pixel(.secondary))
+        }
     }
 
     // MARK: - Audio
