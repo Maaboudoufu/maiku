@@ -8,13 +8,13 @@ not banned outright, but each one ships only after the maintainer has
 individually reviewed it and decided it's authorized to use, the same
 authorization bar as anything hand-drawn.
 
-**Current status: `listening` and `paused` have real, supplied artwork
-(`clawd_listening_01.png` … `_08.png`, `clawd_paused_01.png` … `_06.png`).
-Every other state is still the placeholder.** For any state whose files are
-not present, `ClawdView` draws an obviously generic pixel creature carrying a
-per-state prop, with a "Placeholder art" badge under it — a stand-in so the
-state machine, frame timing, and VoiceOver wiring are real and testable even
-where the product's actual mascot is still missing.
+**Current status: `idle`, `listening`, `paused`, and `transcribing` have real,
+supplied artwork. `ready`, `organizing`, `complete`, `error`, and
+`lmstudio_disconnected` are still the placeholder.** For any state whose files
+are not present, `ClawdView` draws an obviously generic pixel creature
+carrying a per-state prop, with a "Placeholder art" badge under it — a
+stand-in so the state machine, frame timing, and VoiceOver wiring are real and
+testable even where the product's actual mascot is still missing.
 
 ## Expected files
 
@@ -23,27 +23,47 @@ filename, so getting the names right is the whole integration.
 
 | File | State | Frame hold | Status |
 | --- | --- | --- | --- |
-| `clawd_idle_notebook.png` | idle — holding a small notebook | still | placeholder |
+| `clawd_idle_notebook.png` | idle — standing beside a glowing idea/lightbulb | still | **supplied** |
 | `clawd_ready_mic.png` | ready — beside a mic, alert, not recording | still | placeholder |
-| `clawd_listening_01.png` … `_08.png` | listening — holding the mic, waving, sound waves | 0.11 s | **supplied** |
+| `clawd_listening_01.png` … `_08.png` | listening — swinging the mic up and forward | 0.11 s | **supplied** |
 | `clawd_paused_01.png` … `_06.png` | paused — standing beside a static pause symbol | 0.14 s | **supplied** |
-| `clawd_transcribing_01.png`, `_02.png` | transcribing — typing at a tiny terminal | 0.25 s | placeholder |
+| `clawd_transcribing_01.png` … `_08.png` | transcribing — sparks of colour trailing off, growing | 0.18 s | **supplied** |
 | `clawd_organizing_01.png` … `_03.png` | organizing — sorting cards into folders | 0.22 s | placeholder |
 | `clawd_complete.png` | complete — finished page with a checkmark | still | placeholder |
 | `clawd_error.png` | error — tangled or unplugged mic cable | still | placeholder |
 | `clawd_lmstudio_disconnected.png` | LM Studio disconnected — unplugged computer | still | placeholder |
 
-Twenty-four files total (`listening` needed 8, not the 4 first sketched, and
-`paused` shipped as a 6-frame loop rather than the single still first
-sketched, once real art actually arrived at those frame counts). A partial set
-is fine: any frame that fails to resolve falls back to the placeholder for
-that frame only, so art can land one state at a time — which is exactly what
-happened here.
+Thirty files total. Several states shipped with different frame counts, or
+poses, than plan §14 first sketched — `listening` needed 8 frames instead of
+4, `paused` became a 6-frame loop instead of a single still, `transcribing`
+became an 8-frame loop instead of 2, `idle`'s prop became a lightbulb instead
+of a notebook — once real art actually arrived. The plan's manifest was
+always a *suggested* starting point, not a fixed contract; the filename and
+state each frame belongs to is the actual contract (`ClawdAssetManifest`). A
+partial set is fine regardless: any frame that fails to resolve falls back to
+the placeholder for that frame only, so art can land one state at a time —
+which is exactly what happened here.
 
-The `listening` frames were supplied at 512×512 and the `paused` frames at
-512×256, neither the 64×64 baseline below — both exact multiples of 64 (8×
-and 4× respectively), which nearest-neighbour scaling handles without blur
-(see Format, below) precisely because they're whole multiples.
+The `listening` and `transcribing` frames were supplied at 384×512, `paused`
+at 512×256, none of them the 64×64 baseline below — all exact multiples of 64
+(6×8, 6×8, and 8×4 respectively), which nearest-neighbour scaling handles
+without blur (see Format, below) precisely because they're whole multiples.
+`idle` was supplied at 520×810, *not* a whole multiple — accepted anyway per
+the tolerance the Format section already describes for a hero placement; it
+stays hard-edged, just with some pixel runs a point wider than others.
+
+**A supplied PNG can carry a hard-cutout artifact worth checking for**: if an
+image started as art on a white canvas and had its background knocked out
+by thresholding alpha to fully-opaque/fully-transparent (rather than
+preserving a soft edge), the boundary pixels can keep a colour blended toward
+white from before the cutout — a pale fringe or halo right at the silhouette
+edge, even though alpha there reads as fully opaque. `idle`'s source had
+this; fixed by eroding the alpha mask by 1px (`magick src -alpha extract
+-morphology Erode Octagon:1 mask.png`, then recomposite with
+`-compose CopyOpacity`), which shaves off exactly the contaminated ring
+without touching interior colour. Frames with a genuine soft glow baked in on
+purpose (`listening`, `paused`, `transcribing`) are a different thing — that
+alpha gradient is intentional, not an artifact, and is left alone.
 
 ## Format
 

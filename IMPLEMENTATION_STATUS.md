@@ -511,6 +511,16 @@ AI-generated pieces) ships when the maintainer has personally reviewed and autho
 specific piece, not under a blanket ban on model-generated art. This was a deliberate maintainer
 decision made explicitly aware of the prior stricter language, not an oversight.
 
+### Three more Clawd states supplied (2026-07-30)
+
+`idle` (a still, standing beside a glowing lightbulb) and `transcribing` (an 8-frame loop,
+180ms/frame, replacing the 2-frame placeholder) gained real authorized artwork; `listening`'s
+existing 8 frames were replaced with a new set in the same glowing style as `paused` and the app
+icon, unifying the look across every animated state. `idle`'s source PNG carried a real defect —
+a pale white-ish fringe baked into the opaque edge pixels from an imprecise background cutout —
+fixed by eroding the alpha mask by 1px (documented in `Resources/Clawd/README.md`, since it's a
+defect worth checking for in future supplied art, not a one-off).
+
 ## Next task
 
 All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
@@ -518,8 +528,9 @@ visually confirmed end-to-end. What remains:
 
 1. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — now runnable with today's display access,
    not yet executed.
-2. **Seven of nine Clawd states still have no authorized artwork** — `listening` and `paused` do.
-   `Resources/Clawd/README.md` has the exact filenames and format each remaining state needs.
+2. **Five of nine Clawd states still have no authorized artwork** — `idle`, `listening`, `paused`,
+   and `transcribing` do. `Resources/Clawd/README.md` has the exact filenames and format each
+   remaining state needs.
 3. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
    steps to run once a Developer ID certificate exists).
 

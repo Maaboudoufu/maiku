@@ -57,6 +57,12 @@ public struct ClawdAssetManifest: Sendable {
         "clawd_paused_06.png",
         "clawd_transcribing_01.png",
         "clawd_transcribing_02.png",
+        "clawd_transcribing_03.png",
+        "clawd_transcribing_04.png",
+        "clawd_transcribing_05.png",
+        "clawd_transcribing_06.png",
+        "clawd_transcribing_07.png",
+        "clawd_transcribing_08.png",
         "clawd_organizing_01.png",
         "clawd_organizing_02.png",
         "clawd_organizing_03.png",
@@ -94,7 +100,16 @@ public struct ClawdAssetManifest: Sendable {
                     "clawd_paused_05.png", "clawd_paused_06.png",
                 ], frameDuration: 0.14)
         case .transcribing:
-            Entry(["clawd_transcribing_01.png", "clawd_transcribing_02.png"], frameDuration: 0.25)
+            // 180ms/frame — between listening's 110ms (a live, urgent loop)
+            // and organizing's 220ms (a slower, more deliberate one); this is
+            // an ambient "thinking" loop, not something the user is driving.
+            Entry(
+                [
+                    "clawd_transcribing_01.png", "clawd_transcribing_02.png",
+                    "clawd_transcribing_03.png", "clawd_transcribing_04.png",
+                    "clawd_transcribing_05.png", "clawd_transcribing_06.png",
+                    "clawd_transcribing_07.png", "clawd_transcribing_08.png",
+                ], frameDuration: 0.18)
         case .organizing:
             Entry(
                 [
