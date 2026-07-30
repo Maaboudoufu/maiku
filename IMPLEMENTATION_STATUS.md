@@ -490,6 +490,27 @@ listener. No existing test covered either path — this class of bug (view-ident
 push-navigation, not caught by any unit test that only ever constructs one `RecordingDetailView`
 per test) only surfaces under real, hands-on navigation.
 
+### Design pass, app icon, and second Clawd state (2026-07-29 evening)
+
+Reworked the 8-bit design system's execution, not its concept: chrome typography moved from
+generic system-monospaced to Monaco (real retro-Mac pedigree, bundled, no new asset); added a
+blinking terminal-cursor signature mark beside the wordmark; gave `CRTOverlay` a real dot-grid
+texture instead of a near-invisible one. Fixed a real layout bug found in the process: Library/
+Search/Tags/Trash's empty-state `PixelPanel` stretched to fill the whole column while its text
+stayed centered inside, leaving a bordered box with dead space — now capped to a compact width
+before centering. Also swapped the search field's stray `RoundedRectangle` for the app's own
+notched `PixelCorner`.
+
+`paused` gained real authorized artwork: a 6-frame loop (140ms/frame) supplied by the maintainer,
+replacing the single-still placeholder — same precedent as `listening`'s frame-count change,
+documented in `Resources/Clawd/README.md`.
+
+**The app icon changed to an AI-generated image, and the "nothing model-generated" language in
+`Resources/Clawd/README.md` and the About screen was revised to match**: Clawd artwork (including
+AI-generated pieces) ships when the maintainer has personally reviewed and authorized that
+specific piece, not under a blanket ban on model-generated art. This was a deliberate maintainer
+decision made explicitly aware of the prior stricter language, not an oversight.
+
 ## Next task
 
 All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
@@ -497,7 +518,7 @@ visually confirmed end-to-end. What remains:
 
 1. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — now runnable with today's display access,
    not yet executed.
-2. **Eight of nine Clawd states still have no authorized artwork** — only `listening` does.
+2. **Seven of nine Clawd states still have no authorized artwork** — `listening` and `paused` do.
    `Resources/Clawd/README.md` has the exact filenames and format each remaining state needs.
 3. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
    steps to run once a Developer ID certificate exists).

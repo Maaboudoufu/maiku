@@ -49,7 +49,12 @@ public struct ClawdAssetManifest: Sendable {
         "clawd_listening_06.png",
         "clawd_listening_07.png",
         "clawd_listening_08.png",
-        "clawd_paused.png",
+        "clawd_paused_01.png",
+        "clawd_paused_02.png",
+        "clawd_paused_03.png",
+        "clawd_paused_04.png",
+        "clawd_paused_05.png",
+        "clawd_paused_06.png",
         "clawd_transcribing_01.png",
         "clawd_transcribing_02.png",
         "clawd_organizing_01.png",
@@ -80,7 +85,14 @@ public struct ClawdAssetManifest: Sendable {
                     "clawd_listening_07.png", "clawd_listening_08.png",
                 ], frameDuration: 0.11)
         case .paused:
-            Entry(["clawd_paused.png"])
+            // 140ms/frame — the midpoint of the authorized artwork's own
+            // suggested 120-160ms range (Resources/Clawd/README.md).
+            Entry(
+                [
+                    "clawd_paused_01.png", "clawd_paused_02.png",
+                    "clawd_paused_03.png", "clawd_paused_04.png",
+                    "clawd_paused_05.png", "clawd_paused_06.png",
+                ], frameDuration: 0.14)
         case .transcribing:
             Entry(["clawd_transcribing_01.png", "clawd_transcribing_02.png"], frameDuration: 0.25)
         case .organizing:

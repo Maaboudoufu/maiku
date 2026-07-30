@@ -32,7 +32,7 @@ struct AboutView: View {
             .fixedSize(horizontal: false, vertical: true)
 
             Text(
-                "maiku is an independent project and is not affiliated with, endorsed by, or sponsored by Anthropic. The Clawd character belongs to Anthropic; any artwork shown was supplied by the project maintainer under their own authorization, not scraped, traced, or generated."
+                "maiku is an independent project and is not affiliated with, endorsed by, or sponsored by Anthropic. The Clawd character belongs to Anthropic; any artwork shown, including AI-generated pieces, was supplied and individually authorized by the project maintainer, not scraped or traced from anyone else's work."
             )
             .font(theme.font.caption)
             .foregroundStyle(theme.color.textSecondary)
