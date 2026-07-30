@@ -521,6 +521,18 @@ a pale white-ish fringe baked into the opaque edge pixels from an imprecise back
 fixed by eroding the alpha mask by 1px (documented in `Resources/Clawd/README.md`, since it's a
 defect worth checking for in future supplied art, not a one-off).
 
+**Real bug found and fixed: every sprite was being stretched, not just scaled.** `ClawdView`
+rendered every frame with `.resizable().frame(width: size, height: size)` and no aspect ratio of
+its own — a bare `.resizable()` stretches its source to exactly fill the frame it's given, which
+distorts anything that isn't already square. None of the newly supplied art (384×512, 512×256,
+520×810) is square, so every state was visibly warped, and the `idle` empty-state card in
+particular read as "too wide and stretched." Fixed with one `.aspectRatio(contentMode: .fit)`
+before the frame, in the single place every state's sprite renders through — this fixed all of
+them at once, not one image at a time. Also: `organizing` was still drawing the never-supplied
+placeholder despite `transcribing` and `listening` having real art, because no art had actually
+been pointed at it. Wired it to the same supplied "processing" loop `transcribing` uses (one asset
+was authorized covering both processing stages), just held slightly longer per frame.
+
 ## Next task
 
 All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
@@ -528,9 +540,9 @@ visually confirmed end-to-end. What remains:
 
 1. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — now runnable with today's display access,
    not yet executed.
-2. **Five of nine Clawd states still have no authorized artwork** — `idle`, `listening`, `paused`,
-   and `transcribing` do. `Resources/Clawd/README.md` has the exact filenames and format each
-   remaining state needs.
+2. **Four of nine Clawd states still have no authorized artwork** — `ready`, `complete`, `error`,
+   and `lmStudioDisconnected` do not; every other state does. `Resources/Clawd/README.md` has the
+   exact filenames and format each remaining state needs.
 3. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
    steps to run once a Developer ID certificate exists).
 

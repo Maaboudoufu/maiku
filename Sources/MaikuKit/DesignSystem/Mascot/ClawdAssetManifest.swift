@@ -66,6 +66,11 @@ public struct ClawdAssetManifest: Sendable {
         "clawd_organizing_01.png",
         "clawd_organizing_02.png",
         "clawd_organizing_03.png",
+        "clawd_organizing_04.png",
+        "clawd_organizing_05.png",
+        "clawd_organizing_06.png",
+        "clawd_organizing_07.png",
+        "clawd_organizing_08.png",
         "clawd_complete.png",
         "clawd_error.png",
         "clawd_lmstudio_disconnected.png",
@@ -111,10 +116,16 @@ public struct ClawdAssetManifest: Sendable {
                     "clawd_transcribing_07.png", "clawd_transcribing_08.png",
                 ], frameDuration: 0.18)
         case .organizing:
+            // Same supplied frames as transcribing (one "processing" loop was
+            // authorized, covering both stages), held slightly longer per
+            // frame — organizing is the heavier LM Studio step, transcribing
+            // the quicker one.
             Entry(
                 [
                     "clawd_organizing_01.png", "clawd_organizing_02.png",
-                    "clawd_organizing_03.png",
+                    "clawd_organizing_03.png", "clawd_organizing_04.png",
+                    "clawd_organizing_05.png", "clawd_organizing_06.png",
+                    "clawd_organizing_07.png", "clawd_organizing_08.png",
                 ], frameDuration: 0.22)
         case .complete:
             Entry(["clawd_complete.png"])

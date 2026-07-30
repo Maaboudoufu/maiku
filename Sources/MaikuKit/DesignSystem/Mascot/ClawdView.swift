@@ -71,6 +71,11 @@ public struct ClawdView: View {
                 .interpolation(.none)  // no blurry scaled pixel art (plan §13.1)
                 .antialiased(false)
                 .resizable()
+                // Supplied art is not always square (384×512, 520×810 so far) —
+                // .fit scales proportionally within the box instead of
+                // stretching the frame to it, which is what a bare .resizable()
+                // does with no aspect ratio of its own to fall back on.
+                .aspectRatio(contentMode: .fit)
                 .frame(width: size, height: size)
         } else {
             PlaceholderSprite(state: state, frameIndex: index)

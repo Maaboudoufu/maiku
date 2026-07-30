@@ -8,8 +8,8 @@ not banned outright, but each one ships only after the maintainer has
 individually reviewed it and decided it's authorized to use, the same
 authorization bar as anything hand-drawn.
 
-**Current status: `idle`, `listening`, `paused`, and `transcribing` have real,
-supplied artwork. `ready`, `organizing`, `complete`, `error`, and
+**Current status: `idle`, `listening`, `paused`, `transcribing`, and
+`organizing` have real, supplied artwork. `ready`, `complete`, `error`, and
 `lmstudio_disconnected` are still the placeholder.** For any state whose files
 are not present, `ClawdView` draws an obviously generic pixel creature
 carrying a per-state prop, with a "Placeholder art" badge under it — a
@@ -28,29 +28,38 @@ filename, so getting the names right is the whole integration.
 | `clawd_listening_01.png` … `_08.png` | listening — swinging the mic up and forward | 0.11 s | **supplied** |
 | `clawd_paused_01.png` … `_06.png` | paused — standing beside a static pause symbol | 0.14 s | **supplied** |
 | `clawd_transcribing_01.png` … `_08.png` | transcribing — sparks of colour trailing off, growing | 0.18 s | **supplied** |
-| `clawd_organizing_01.png` … `_03.png` | organizing — sorting cards into folders | 0.22 s | placeholder |
+| `clawd_organizing_01.png` … `_08.png` | organizing — sparks of colour trailing off, growing | 0.22 s | **supplied** |
 | `clawd_complete.png` | complete — finished page with a checkmark | still | placeholder |
 | `clawd_error.png` | error — tangled or unplugged mic cable | still | placeholder |
 | `clawd_lmstudio_disconnected.png` | LM Studio disconnected — unplugged computer | still | placeholder |
 
-Thirty files total. Several states shipped with different frame counts, or
+Thirty-five files total. Several states shipped with different frame counts, or
 poses, than plan §14 first sketched — `listening` needed 8 frames instead of
 4, `paused` became a 6-frame loop instead of a single still, `transcribing`
-became an 8-frame loop instead of 2, `idle`'s prop became a lightbulb instead
-of a notebook — once real art actually arrived. The plan's manifest was
-always a *suggested* starting point, not a fixed contract; the filename and
-state each frame belongs to is the actual contract (`ClawdAssetManifest`). A
-partial set is fine regardless: any frame that fails to resolve falls back to
-the placeholder for that frame only, so art can land one state at a time —
-which is exactly what happened here.
+and `organizing` each became an 8-frame loop instead of 2 and 3 respectively,
+`idle`'s prop became a lightbulb instead of a notebook — once real art
+actually arrived. `organizing` reuses the exact frames authorized for
+`transcribing`: one "processing" loop was supplied, covering both stages, not
+two separate pieces of art. The plan's manifest was always a *suggested*
+starting point, not a fixed contract; the filename and state each frame
+belongs to is the actual contract (`ClawdAssetManifest`). A partial set is
+fine regardless: any frame that fails to resolve falls back to the
+placeholder for that frame only, so art can land one state at a time — which
+is exactly what happened here.
 
-The `listening` and `transcribing` frames were supplied at 384×512, `paused`
-at 512×256, none of them the 64×64 baseline below — all exact multiples of 64
-(6×8, 6×8, and 8×4 respectively), which nearest-neighbour scaling handles
+The `listening`, `transcribing`, and `organizing` frames were supplied at
+384×512, `paused` at 512×256, none of them the 64×64 baseline below — all
+exact multiples of 64 (6×8 and 8×4), which nearest-neighbour scaling handles
 without blur (see Format, below) precisely because they're whole multiples.
 `idle` was supplied at 520×810, *not* a whole multiple — accepted anyway per
 the tolerance the Format section already describes for a hero placement; it
 stays hard-edged, just with some pixel runs a point wider than others.
+
+None of this supplied art is square, which exposed a real `ClawdView` bug:
+`.resizable()` alone stretches its source to exactly fill whatever frame it's
+given, distorting anything non-square rather than scaling it proportionally.
+Fixed with `.aspectRatio(contentMode: .fit)` ahead of the frame — the one
+place every state's sprite renders through, so it fixed every state at once.
 
 **A supplied PNG can carry a hard-cutout artifact worth checking for**: if an
 image started as art on a white canvas and had its background knocked out
