@@ -457,31 +457,51 @@ been seen rendering on this machine; see Known Limitations.
 - Notarization and Developer ID signing are unavailable (no credentials, no Xcode). The build
   script ad-hoc signs for local development only — see `Docs/DISTRIBUTION.md` for the exact
   signing and notarization steps to run once credentials exist.
-- **No attached display on this machine** (`screencapture` fails with "could not create image
-  from display"). Every screen in the app has been built and compiles, and the process itself
-  has been verified live (launches, initializes its full dependency graph, opens its sandboxed
-  database) — but no screen has actually been seen rendering, and no button has actually been
-  clicked. This has been true since Milestone 1 and remains true through Milestone 2; it is
-  recorded here once rather than repeated under every milestone that doesn't resolve it.
+- Notarization and Developer ID signing are unavailable (no credentials). The build script
+  ad-hoc signs for local development only — see `Docs/DISTRIBUTION.md` for the exact signing and
+  notarization steps to run once credentials exist.
+
+### Visual verification (2026-07-29)
+
+A machine with an attached display and microphone became available for the first time since
+Milestone 1. Ran the full golden path by hand (`./scripts/build.sh`, launch `dist/Maiku.app`,
+drive it via macOS accessibility scripting): Library → Record (real TCC microphone permission
+prompt, granted once and correctly not re-prompted on a second recording) → live recording screen
+(real waveform, real `WhisperKit` streaming transcript, the consent reminder) → Stop → Processing
+(real staged pipeline through the LM Studio organize step) → Detail screen, auto-navigated,
+COMPLETE status, working audio player and Overview/Notes/Transcript/Action Items tabs. Also
+confirmed on a recording with real speech, not just silence: correct transcription, a real
+speaker identified, and a coherent LM Studio summary/key-takeaways. Every screen renders as
+designed; nothing above was previously more than compiled-and-unit-tested.
+
+**Real bug found and fixed.** Switching from one recording's detail screen to another's could
+show the *previous* recording's audio duration in the player instead of the new one's — e.g. a
+0:16 recording displayed as "1:15" (an earlier recording's length). Root cause:
+`RecordingDetailView`'s `@State private var playbackState` is never reset, and since
+`.navigationDestination(for: LibraryRoute.self)` pushes `RecordingDetailView(recordingID:)` with
+no `.id(recordingID)`, SwiftUI can reuse the same `@State` storage across two different
+recordings' detail screens — so the old recording's last known duration keeps rendering until a
+fresh value arrives, however long that takes. Fixed by resetting `playbackState` to a neutral
+value at the top of `loadAudio()`, the same fix-up shape already used for `recording`/`segments`/
+`speakers`/`organized` in that file. `AudioPlaybackService.stop()` was also changed to publish a
+neutral `PlaybackState` (it previously did nothing observable), closing a related edge case where
+a value already sitting in the state stream's one-slot buffer could reach a newly (re)started
+listener. No existing test covered either path — this class of bug (view-identity reuse across
+push-navigation, not caught by any unit test that only ever constructs one `RecordingDetailView`
+per test) only surfaces under real, hands-on navigation.
 
 ## Next task
 
-All six milestones plan.md defines (§16, Milestones 0–6) are now complete. What remains is not a
-milestone but a fixed set of follow-ups, each already tracked above rather than newly discovered
-here:
+All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
+visually confirmed end-to-end. What remains:
 
-1. **Visual verification on a machine with a display.** Every screen has been built, compiles,
-   and (where the logic allows it) is unit-tested — but no screen has actually been seen
-   rendering, and no button has actually been clicked, on this machine. This is the single
-   largest gap between "should work" and "confirmed working." Run `./scripts/build.sh` and open
-   `dist/Maiku.app` on a Mac with a display and a microphone as the first next step.
-2. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — genuinely un-runnable without real
-   hardware, never executed.
-3. **Eight of nine Clawd states still have no authorized artwork** — only `listening` does.
+1. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — now runnable with today's display access,
+   not yet executed.
+2. **Eight of nine Clawd states still have no authorized artwork** — only `listening` does.
    `Resources/Clawd/README.md` has the exact filenames and format each remaining state needs.
-4. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
+3. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
    steps to run once a Developer ID certificate exists).
 
 No further code changes are expected to be needed to reach plan.md's stated scope — everything
-above is either hands-on verification or waiting on an external resource (real hardware,
-artwork, or a paid developer account) rather than unwritten logic.
+above is either hands-on verification or waiting on an external resource (artwork or a paid
+developer account) rather than unwritten logic.

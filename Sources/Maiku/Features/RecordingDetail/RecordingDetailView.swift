@@ -390,6 +390,7 @@ struct RecordingDetailView: View {
     // MARK: Playback
 
     private func loadAudio() async {
+        playbackState = PlaybackState(currentTime: 0, duration: 0, isPlaying: false, rate: 1)
         guard let recording,
             let relativePath = recording.audioRelativePath ?? recording.workingAudioRelativePath,
             let url = AppPaths.absoluteURL(forRelativePath: relativePath)

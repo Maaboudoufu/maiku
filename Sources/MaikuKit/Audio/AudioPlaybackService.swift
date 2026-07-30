@@ -108,6 +108,7 @@ public actor AudioPlaybackService: AudioPlaying {
         player?.stop()
         stopPolling()
         player = nil
+        stateContinuation.yield(PlaybackState(currentTime: 0, duration: 0, isPlaying: false, rate: 1))
     }
 
     public func currentState() -> PlaybackState? {
