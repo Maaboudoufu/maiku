@@ -370,8 +370,77 @@ and `SpeechModelLibraryTests`. As with every milestone so far, the actual screen
 Search, Tags, Trash, and the new Export menu — have not been seen rendering on this machine; see
 Known Limitations.
 
-### Milestone 6 — Pixel polish, accessibility, and release readiness
-- [ ] Design system, Clawd assets, reduced motion, VoiceOver, icon, docs, tests, acceptance checklist
+### Milestone 6 — Pixel polish, accessibility, and release readiness — **complete**
+
+The 8-bit design system's tokens, pixel components, and Clawd state machine all already existed
+from Milestone 1 (`Theme.swift`, `PixelButton`/`Panel`/`Progress`/`Waveform`, `ClawdView`). This
+milestone's actual new work:
+
+- [x] The first authorized Clawd artwork — an 8-frame `listening` animation supplied by the
+      maintainer — wired into `ClawdAssetManifest` at its own frame count and timing (8 frames,
+      110ms) rather than forcing it into the plan's original 4-frame sketch
+- [x] A real bug this exposed, fixed: `ClawdArtwork.isInstalled` was one app-wide flag, so
+      installing any state's art would have hidden the "Placeholder art" badge on every other
+      state too, including the eight that still have none. Replaced with `isFullyInstalled(_:)`,
+      cached per state's own frame list, with an injectable resolver so the per-state
+      independence is unit-tested directly rather than only inferred from reading the code
+- [x] Reduced Motion, CRT effects, and sound effects — all three were persisted in `AppSettings`
+      since Milestone 5 but never consumed anywhere. `EffectsGating` (pure, unit-tested
+      functions) decides all three; a writable `\.effectiveReduceMotion` environment key carries
+      a user override past SwiftUI's own get-only `\.accessibilityReduceMotion`; `CRTOverlay`
+      draws static scan lines and a vignette; `SoundEffects` gates `NSSound` system cues through
+      `AppEnvironment.playSound(_:)`. `AppEnvironment` is now `@Observable` with a
+      `currentSettings` mirror so all three take effect immediately when changed, not at next
+      launch
+- [x] An accessibility audit against plan §13.2, not just a reading of the code: computed real
+      WCAG contrast ratios for every `Theme.Colors` text/status pair (`WCAGContrast`) and found
+      two real failures — light-theme `warning` and `success`, both used at `.caption` size,
+      measured 4.22–4.28:1 against their surface, under AA's 4.5:1. Darkened both ~10%, same hue,
+      to clear it with margin, and locked the audit in as a regression test. Also found and fixed
+      three real VoiceOver gaps (an unlabeled selection checkmark, a warning icon and message
+      reading as two disconnected elements, a decorative chevron read as noise on top of a
+      button's own semantics), and confirmed there are no `onTapGesture`-only controls anywhere —
+      everything interactive already goes through `Button`
+- [x] An app icon (`Resources/AppIcon.icns`) — a pixel-styled cream/orange waveform glyph,
+      generated with a small CoreGraphics script and `sips`/`iconutil` rather than hand-drawn,
+      deliberately not using Clawd (the icon is the app's most visible surface, and only one
+      mascot state has authorized art so far)
+- [x] An About screen (`AboutView`, a Settings sheet) stating plainly that maiku is independent
+      and not affiliated with Anthropic, and that any Clawd artwork shown was supplied by the
+      maintainer under their own authorization (plan §14)
+- [x] `Docs/MANUAL_ACCEPTANCE.md` — plan §17.4's thirteen scenarios, each cross-referenced against
+      which automated tests already cover the logic versus what would be exercised for real for
+      the first time
+- [x] `Docs/DISTRIBUTION.md` — the signing and notarization runbook for whoever has Developer ID
+      credentials later, so distributing a real build doesn't require re-deriving the process
+
+9 new tests across this work (Clawd manifest regression + `isFullyInstalled` independence,
+`EffectsGating`, `GatedSoundPlayer`, `WCAGContrast` formula sanity + both themes' audited pairs),
+200 total, all passing.
+
+**Design decision — `listening` ships 8 frames, not the 4 plan §14's suggested manifest
+sketched.** The plan's own frame list was a starting sketch for a placeholder-first
+implementation, not a fixed contract; the first real art actually supplied came as an 8-frame
+loop with its own metadata (110ms/frame), and forcing it down to 4 frames or inventing 4
+durations not present in the source would have been the less honest choice.
+
+**Design decision — a second, writable `\.effectiveReduceMotion` environment key, not an override
+of `\.accessibilityReduceMotion` directly.** SwiftUI's own key is get-only from outside the
+system — there is no supported way to make `.environment(\.accessibilityReduceMotion, _)`
+override it for a subtree (confirmed by the compiler, not assumed). `ClawdView`/`PixelProgress`
+now read the new key instead, set once in `RootView` from `EffectsGating.effectiveReduceMotion`.
+
+**Design decision — sound effects use plain `NSSound(named:)` system sounds, not bundled audio
+assets.** Every cue (`Pop`, `Bottle`, `Glass`, `Basso`) ships with macOS; there is nothing to
+author, license, or bundle for a handful of short UI chimes, and the moments they fire from
+(recording start/stop, processing complete, error) are exactly what plan §13.2's "sound effects
+toggle" was describing.
+
+**Verification.** `./scripts/build.sh` and `./scripts/test.sh` both succeed (200/200), and the
+app icon was confirmed actually present at `dist/Maiku.app/Contents/Resources/AppIcon.icns` after
+a real build, not just referenced in `Info.plist`. As with every milestone so far, the actual
+screens — the new About sheet, the CRT overlay, the real listening-state animation — have not
+been seen rendering on this machine; see Known Limitations.
 
 ## Known limitations
 
@@ -397,11 +466,22 @@ Known Limitations.
 
 ## Next task
 
-Begin Milestone 6 (pixel polish, accessibility, and release readiness): the full 8-bit design
-system pass, wiring authorized Clawd assets to every `ClawdState` (one animation has already been
-supplied — `clawd_mic_wave_png_frames.zip` at the repo root, 8 frames at 110ms matching
-`.listening`; the placeholder component currently rendering in its place needs replacing state by
-state, not just for this one), Reduced Motion/effects controls, a VoiceOver and keyboard pass, an
-app icon and About screen, `THIRD_PARTY_NOTICES.md`, and the manual acceptance checklist from plan
-§17.4. Verifying the actual screens on a machine with a display remains outstanding too — see
-Known Limitations, unresolved since Milestone 1.
+All six milestones plan.md defines (§16, Milestones 0–6) are now complete. What remains is not a
+milestone but a fixed set of follow-ups, each already tracked above rather than newly discovered
+here:
+
+1. **Visual verification on a machine with a display.** Every screen has been built, compiles,
+   and (where the logic allows it) is unit-tested — but no screen has actually been seen
+   rendering, and no button has actually been clicked, on this machine. This is the single
+   largest gap between "should work" and "confirmed working." Run `./scripts/build.sh` and open
+   `dist/Maiku.app` on a Mac with a display and a microphone as the first next step.
+2. **`Docs/MANUAL_ACCEPTANCE.md`'s thirteen scenarios** — genuinely un-runnable without real
+   hardware, never executed.
+3. **Eight of nine Clawd states still have no authorized artwork** — only `listening` does.
+   `Resources/Clawd/README.md` has the exact filenames and format each remaining state needs.
+4. **Signing and notarization are blocked on credentials** (`Docs/DISTRIBUTION.md` has the exact
+   steps to run once a Developer ID certificate exists).
+
+No further code changes are expected to be needed to reach plan.md's stated scope — everything
+above is either hands-on verification or waiting on an external resource (real hardware,
+artwork, or a paid developer account) rather than unwritten logic.
