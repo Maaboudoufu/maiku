@@ -382,10 +382,12 @@ Known Limitations.
   adds `-F …/Library/Developer/Frameworks` and an rpath to
   `…/Library/Developer/usr/lib` (for `lib_TestingInterop.dylib`). Without those, `swift test`
   fails with "no such module 'Testing'" and then a dlopen error.
-- **No authorized Clawd artwork present.** Per plan §14 asset rule, a clearly labelled placeholder
-  mascot component ships against the documented filenames until real assets are supplied.
+- **Only one Clawd state has authorized artwork.** `listening` was supplied by the maintainer as
+  of Milestone 6; the other eight states still render the clearly labelled placeholder per plan
+  §14's asset rule, against the same documented filenames, until art for them is supplied too.
 - Notarization and Developer ID signing are unavailable (no credentials, no Xcode). The build
-  script ad-hoc signs for local development only.
+  script ad-hoc signs for local development only — see `Docs/DISTRIBUTION.md` for the exact
+  signing and notarization steps to run once credentials exist.
 - **No attached display on this machine** (`screencapture` fails with "could not create image
   from display"). Every screen in the app has been built and compiles, and the process itself
   has been verified live (launches, initializes its full dependency graph, opens its sandboxed

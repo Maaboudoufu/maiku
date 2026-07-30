@@ -63,6 +63,7 @@ All three exit nonzero on failure. If you have Xcode installed, `open Package.sw
 | [`Docs/MODEL_SETUP.md`](Docs/MODEL_SETUP.md) | Speech models, disk use, offline behaviour |
 | [`Docs/TROUBLESHOOTING.md`](Docs/TROUBLESHOOTING.md) | Microphone, model, LM Studio, recovery |
 | [`Docs/MANUAL_ACCEPTANCE.md`](Docs/MANUAL_ACCEPTANCE.md) | Real-hardware scenarios automated tests can't cover |
+| [`Docs/DISTRIBUTION.md`](Docs/DISTRIBUTION.md) | Signing and notarizing a real build, once credentials exist |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Dependencies, model and artwork licenses |
 
 ## A note on recording others
