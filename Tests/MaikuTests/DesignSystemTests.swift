@@ -215,6 +215,54 @@ struct EffectsGatingTests {
     }
 }
 
+@Suite("Theme contrast")
+struct ThemeContrastTests {
+
+    @Test("The contrast formula is sane at known reference points")
+    func formulaSanityCheck() {
+        #expect(abs(WCAGContrast.ratio(0x00_0000, 0xFF_FFFF) - 21.0) < 0.01)
+        #expect(WCAGContrast.ratio(0xFF_FFFF, 0xFF_FFFF) == 1.0)
+    }
+
+    /// Mirrors `Theme.Colors`' literal hex values — Theme.swift stores a
+    /// resolved SwiftUI `Color`, not a hex constant, so there is no way to
+    /// read them back live here. Kept in sync by hand, the same way
+    /// `ClawdManifestTests.fileNamesMatchSpec` asserts its filename list
+    /// literally rather than derives it: this is meant to fail loudly the
+    /// next time someone changes a color without re-running the audit.
+    @Test("Light theme text and status colors meet WCAG AA (4.5:1) against their surface")
+    func lightThemeMeetsAA() {
+        let pairs: [(name: String, foreground: UInt32, background: UInt32)] = [
+            ("textPrimary/surface", 0x2B_1E14, 0xF4_EBDC),
+            ("textSecondary/surface", 0x6B_5844, 0xF4_EBDC),
+            ("onAccent/accent", 0x1F_1409, 0xE0_7A17),
+            ("onDanger/destructive", 0xFF_F3E6, 0xC4_2B1C),
+            ("warning/surface", 0x7C_5F09, 0xF4_EBDC),
+            ("success/surface", 0x38_7034, 0xF4_EBDC),
+        ]
+        for pair in pairs {
+            let measured = WCAGContrast.ratio(pair.foreground, pair.background)
+            #expect(measured >= 4.5, "\(pair.name) measured \(measured), below WCAG AA")
+        }
+    }
+
+    @Test("Dark theme text and status colors meet WCAG AA (4.5:1) against their surface")
+    func darkThemeMeetsAA() {
+        let pairs: [(name: String, foreground: UInt32, background: UInt32)] = [
+            ("textPrimary/surface", 0xF2_E7D5, 0x17_110C),
+            ("textSecondary/surface", 0xB7_A489, 0x17_110C),
+            ("onAccent/accent", 0x1B_1109, 0xFF_9A3C),
+            ("onDanger/destructive", 0x1B_1109, 0xFF_5A48),
+            ("warning/surface", 0xE8_C25A, 0x17_110C),
+            ("success/surface", 0x6F_BF63, 0x17_110C),
+        ]
+        for pair in pairs {
+            let measured = WCAGContrast.ratio(pair.foreground, pair.background)
+            #expect(measured >= 4.5, "\(pair.name) measured \(measured), below WCAG AA")
+        }
+    }
+}
+
 @Suite("Sound effects")
 struct SoundEffectsTests {
 

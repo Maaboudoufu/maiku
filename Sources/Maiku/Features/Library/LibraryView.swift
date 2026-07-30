@@ -232,10 +232,16 @@ struct ErrorBanner: View {
             HStack(alignment: .top, spacing: theme.space.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(theme.color.warning)
+                    .accessibilityHidden(true)
                 Text(error.message)
                     .font(theme.font.body)
                     .foregroundStyle(theme.color.textPrimary)
             }
         }
+        // Otherwise VoiceOver reads the icon's own SF Symbol label and the
+        // message as two disconnected elements ("exclamation mark triangle",
+        // then the text) instead of one coherent announcement.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Warning: \(error.message)")
     }
 }

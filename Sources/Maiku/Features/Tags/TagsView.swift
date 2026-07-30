@@ -93,11 +93,18 @@ private struct TagRow: View {
                 Text("\(tag.recordingCount)")
                     .font(theme.font.label)
                     .foregroundStyle(theme.color.textSecondary)
+                    .accessibilityHidden(true)
+                // Decorative — the row is already a Button; a bare "chevron
+                // forward" adds nothing VoiceOver needs beyond that trait.
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(theme.color.textSecondary)
+                    .accessibilityHidden(true)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(tag.tag), \(tag.recordingCount) recording\(tag.recordingCount == 1 ? "" : "s")")
     }
 }
 

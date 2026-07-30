@@ -54,9 +54,13 @@ extension Theme {
         public var recording = dyn(0xC42B_1C, 0xFF5A_48)
         public var destructive = dyn(0xC42B_1C, 0xFF5A_48)
 
-        // Status that is not red
-        public var success = dyn(0x3F7D_3A, 0x6FBF_63)
-        public var warning = dyn(0x8A6A_0B, 0xE8C2_5A)
+        // Status that is not red. The light-theme values are darkened ~10%
+        // from the first pass: at `.caption` size (well under WCAG's 18pt/14pt-bold
+        // large-text exemption), the originals measured 4.22–4.28:1 against
+        // `surface` — under the 4.5:1 AA threshold for normal text (plan §13.2).
+        // Same hue, just enough darker to clear it with margin (~5:1).
+        public var success = dyn(0x3870_34, 0x6FBF_63)
+        public var warning = dyn(0x7C5F_09, 0xE8C2_5A)
 
         /// Per-speaker tints, indexed by `Speaker.colorIndex`. Deliberately
         /// avoids orange and red so a speaker badge can never be mistaken for

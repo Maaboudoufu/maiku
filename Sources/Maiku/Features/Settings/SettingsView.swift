@@ -112,6 +112,7 @@ struct SettingsView: View {
             if settings.speechModelName == model {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(theme.color.success)
+                    .accessibilityLabel("Currently selected")
             }
             if modelInProgress == model {
                 ProgressView(value: modelDownloadProgress).frame(width: 60)
