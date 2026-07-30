@@ -44,7 +44,11 @@ struct SearchView: View {
                 .textFieldStyle(.plain)
                 .font(theme.font.body)
                 .padding(theme.space.sm)
-                .background(theme.color.surfaceRaised, in: RoundedRectangle(cornerRadius: theme.corner.small))
+                .background(theme.color.surfaceRaised, in: PixelCorner(step: theme.corner.small))
+                .overlay {
+                    PixelCorner(step: theme.corner.small)
+                        .strokeBorder(theme.color.border, lineWidth: theme.border.hairline)
+                }
                 .onChange(of: queryText) { _, _ in Task { await runSearch() } }
 
             filterBar
@@ -117,8 +121,10 @@ struct SearchView: View {
             Text(queryText.isEmpty && !hasActiveFilter ? "Type to search, or choose a filter to browse." : "No matches.")
                 .font(theme.font.body)
                 .foregroundStyle(theme.color.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: 420)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var resultsList: some View {

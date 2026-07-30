@@ -15,17 +15,31 @@ public struct CRTOverlay: View {
 
     public var body: some View {
         Canvas { context, size in
+            // A faint dot grid first, so empty screens read as a lit
+            // terminal surface rather than a flat void — then scan lines
+            // on top, both at the same static, non-pulsing intensity.
+            var gy: CGFloat = 0
+            while gy < size.height {
+                var gx: CGFloat = 0
+                while gx < size.width {
+                    context.fill(
+                        Path(CGRect(x: gx, y: gy, width: 1, height: 1)),
+                        with: .color(.white.opacity(0.05)))
+                    gx += 16
+                }
+                gy += 16
+            }
             var y: CGFloat = 0
             while y < size.height {
                 context.fill(
                     Path(CGRect(x: 0, y: y, width: size.width, height: 1)),
-                    with: .color(.black.opacity(0.05)))
+                    with: .color(.black.opacity(0.1)))
                 y += 3
             }
         }
         .overlay {
             RadialGradient(
-                colors: [.clear, theme.color.border.opacity(0.16)],
+                colors: [.clear, theme.color.border.opacity(0.28)],
                 center: .center, startRadius: 0, endRadius: 900)
         }
         .allowsHitTesting(false)

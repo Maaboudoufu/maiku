@@ -61,9 +61,12 @@ struct LibraryView: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: theme.space.xs) {
-                Text("maiku")
-                    .font(theme.font.display)
-                    .foregroundStyle(theme.color.textPrimary)
+                HStack(spacing: theme.space.xs) {
+                    Text("maiku")
+                        .font(theme.font.display)
+                        .foregroundStyle(theme.color.textPrimary)
+                    PixelCursor()
+                }
                 Text("Local-first meeting notes.")
                     .font(theme.font.secondary)
                     .foregroundStyle(theme.color.textSecondary)
@@ -92,19 +95,20 @@ struct LibraryView: View {
 
     private var emptyState: some View {
         PixelPanel {
-            VStack(spacing: theme.space.sm) {
-                ClawdView(.idle, size: 72, showsCaption: false)
+            VStack(spacing: theme.space.md) {
+                ClawdView(.idle, size: 96, showsCaption: false)
                 Text("No recordings yet")
-                    .font(theme.font.subheading)
+                    .font(theme.font.heading)
                     .foregroundStyle(theme.color.textPrimary)
                 Text("Press Record to capture a conversation, transcribe it, and organize the notes.")
                     .font(theme.font.body)
                     .foregroundStyle(theme.color.textSecondary)
                     .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: 420)
-            .padding(theme.space.lg)
+            .frame(maxWidth: 380)
+            .padding(theme.space.xl)
         }
+        .frame(maxWidth: 480)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

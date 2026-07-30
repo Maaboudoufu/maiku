@@ -163,17 +163,17 @@ extension Theme {
         public var secondary = Font.callout
         public var caption = Font.caption
 
-        // Chrome — monospaced.
-        //
-        // ponytail: the system monospaced face stands in for the open-licensed
-        // pixel font plan §13.1 allows. Swap in a real pixel font here (and
-        // nowhere else) once one is vendored with its licence.
-        public var display = Font.system(.largeTitle, design: .monospaced, weight: .bold)
-        public var heading = Font.system(.title2, design: .monospaced, weight: .bold)
-        public var subheading = Font.system(.headline, design: .monospaced, weight: .semibold)
-        public var button = Font.system(.callout, design: .monospaced, weight: .semibold)
-        public var label = Font.system(.caption, design: .monospaced, weight: .semibold)
-        public var timer = Font.system(.largeTitle, design: .monospaced, weight: .bold)
+        // Chrome — Monaco, bundled with macOS since the original Mac system
+        // font and still installed today. Real retro-terminal pedigree,
+        // unlike the generic system monospaced design (plan §13.1). Monaco
+        // ships one weight only — authentically period-correct for a pixel
+        // terminal face, not a gap to fake with synthetic bold.
+        public var display = Font.custom("Monaco", size: 30, relativeTo: .largeTitle)
+        public var heading = Font.custom("Monaco", size: 18, relativeTo: .title2)
+        public var subheading = Font.custom("Monaco", size: 14, relativeTo: .headline)
+        public var button = Font.custom("Monaco", size: 12, relativeTo: .callout)
+        public var label = Font.custom("Monaco", size: 10, relativeTo: .caption)
+        public var timer = Font.custom("Monaco", size: 30, relativeTo: .largeTitle)
             .monospacedDigit()
 
         public init() {}

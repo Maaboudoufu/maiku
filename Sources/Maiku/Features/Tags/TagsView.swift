@@ -49,7 +49,10 @@ struct TagsView: View {
                     Text("No tags yet. Organized recordings gain tags automatically.")
                         .font(theme.font.body)
                         .foregroundStyle(theme.color.textSecondary)
+                        .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: 420)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: theme.space.sm) {

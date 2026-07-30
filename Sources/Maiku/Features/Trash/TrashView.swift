@@ -45,7 +45,10 @@ struct TrashView: View {
                     Text("Trash is empty.")
                         .font(theme.font.body)
                         .foregroundStyle(theme.color.textSecondary)
+                        .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: 420)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: theme.space.sm) {
