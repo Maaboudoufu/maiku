@@ -533,6 +533,19 @@ placeholder despite `transcribing` and `listening` having real art, because no a
 been pointed at it. Wired it to the same supplied "processing" loop `transcribing` uses (one asset
 was authorized covering both processing stages), just held slightly longer per frame.
 
+**Second real bug: choppy, jumping animation.** `listening` and `transcribing` (and therefore
+`organizing`, which reuses `transcribing`'s frames) were supplied as one contact sheet each, sliced
+into individual frames by fixed-size cropping. The character was not pixel-registered to the same
+position across the sheet's two rows — measuring each frame's actual content bounding box showed a
+consistent ~99px vertical offset between frames 1-4 and frames 5-8 for `listening`, and a
+consistent ~20px offset for `transcribing`. That is exactly what reads as "jumps around" and "part
+of the frame goes to the other side" once frames are played back in a loop at speed: the character
+was really, measurably jumping between two vertical positions every 4 frames. `paused`'s frames, by
+contrast, measured pixel-identical bounding boxes across all 6 — it needed no fix, confirming this
+was a per-source-image registration problem, not a systemic animation bug. Fixed by measuring the
+per-row offset precisely and re-compositing each row onto a blank 384×512 canvas shifted to
+cancel it out, so all 8 frames of each sequence now share one consistent baseline.
+
 ## Next task
 
 All six milestones plan.md defines (§16, Milestones 0–6) are complete, and the golden path is now
