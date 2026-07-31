@@ -29,6 +29,17 @@
 
 **Get started:**
 
+Download the `.dmg` from [Releases](../../releases/latest), open it, and drag `Maiku.app` to
+`Applications`. maiku isn't notarized (no Apple Developer account behind this yet — see
+[`Docs/DISTRIBUTION.md`](Docs/DISTRIBUTION.md)), so the first launch will be blocked by
+Gatekeeper as "unidentified developer." Right-click `Maiku.app` → **Open** to run it anyway, or:
+
+```bash
+xattr -cr /Applications/Maiku.app
+```
+
+Or build it yourself:
+
 ```bash
 git clone <this repo> && cd maiku
 ./scripts/build.sh          # builds and signs dist/Maiku.app
@@ -137,6 +148,7 @@ All three exit nonzero on failure. If you have Xcode installed, `open Package.sw
 | [`Docs/MANUAL_ACCEPTANCE.md`](Docs/MANUAL_ACCEPTANCE.md) | Real-hardware scenarios automated tests can't cover |
 | [`Docs/DISTRIBUTION.md`](Docs/DISTRIBUTION.md) | Signing and notarizing a real build, once credentials exist |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Dependencies, model and artwork licenses |
+| [`LICENSE`](LICENSE) | MIT license for maiku's own code |
 
 ---
 
